@@ -943,7 +943,8 @@ sp-radio { margin: 1px 0; }
 }
 .about-name { font-size: 14px; font-weight: 700; }
 .about-version { margin-top: 2px; font-size: 10px; color: var(--k-text-dim); }
-#btnCheckUpdate { flex: 0 0 auto; }
+.about-contact-btn { flex: 0 0 auto; align-self: center; }
+.about-hero .grow { min-width: 0; }
 .about-changelog {
   margin-top: 8px;
   font-size: 12px;
@@ -952,8 +953,6 @@ sp-radio { margin: 1px 0; }
   white-space: pre-line;
   word-break: break-word;
 }
-.about-email { margin-top: 4px; font-size: 11px; }
-#btnAboutContact { margin-top: 8px; align-self: flex-start; }
 /* 关于页：卡片之间显式留白（UXP 的 flex gap 不稳定） */
 #screenAbout { gap: 0; }
 #screenAbout .section-title + .card { margin-top: 8px; }
@@ -1053,8 +1052,7 @@ sp-button[size="s"]::part(button),
 #btnRunApp::part(button),
 #btnSavePrompt::part(button),
 #chatSendBtn::part(button),
-#btnSaveToken::part(button),
-#btnAboutContact::part(button) {
+#btnSaveToken::part(button) {
   min-height: 22px;
   height: 22px;
   max-height: 22px;
@@ -1062,9 +1060,8 @@ sp-button[size="s"]::part(button),
   font-size: 11px;
   line-height: 1;
 }
-/* 关于页「联系我们」与生成页「生成」按钮同宽同高 */
-#generateBtn,
-#btnAboutContact { min-width: 76px; }
+/* 生成页主按钮保持固定宽度 */
+#generateBtn { min-width: 76px; }
 sp-action-button::part(button) {
   min-height: 0;
   height: 20px;

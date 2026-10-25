@@ -258,10 +258,19 @@ window.KREA_I18N = (function () {
     /* ------------------------------------------------------------- 关于 */
     "about.title": ["关于", "About"],
     "about.version": ["当前版本", "Current version"],
-    "about.checkUpdate": ["检测更新", "Check for updates"],
-    "about.checkingUpdate": ["正在检测更新…", "Checking for updates…"],
+    "about.contact": ["联系我们", "Contact us"],
+    "about.contactTopic": ["Krea for Ps 插件咨询", "Krea for Ps plugin enquiry"],
+    "about.contactMessage": [
+      "你好，我在使用 Krea for Ps v{version}，想咨询：",
+      "Hi, I'm using Krea for Ps v{version} and would like to ask: "
+    ],
+    "about.contactOpening": ["正在唤起 Microsoft Teams 对话…", "Opening the Microsoft Teams chat…"],
+    "about.contactFailed": [
+      "无法唤起 Microsoft Teams，请确认已安装 Teams 客户端。",
+      "Could not open Microsoft Teams. Make sure the Teams desktop app is installed."
+    ],
     "about.upToDate": ["已是最新版本 v{version}", "You're up to date — v{version}"],
-    "about.updateFound": ["发现新版本 v{version}，可在「设置 → 关于」中下载", "Version v{version} is available in Settings → About"],
+    "about.updateFound": ["发现新版本 v{version}，可在「设置 → 插件更新」中下载", "Version v{version} is available in Settings → Plugin updates"],
     "about.updateTitle": ["发现新版本", "Update available"],
     "about.updateBody": [
       "当前版本 v{current}，最新版本 v{latest}。{notes}\n\n下载后请完全退出 Photoshop，再双击 .ccx 覆盖安装。",
@@ -276,13 +285,11 @@ window.KREA_I18N = (function () {
     "about.updateFailed": ["检测更新失败：{msg}", "Update check failed: {msg}"],
     "about.models": ["内置模型 {models} 个 · 模型注册表 {date}", "{models} built-in models · registry {date}"],
     "about.iconPack": ["图标：已加载 {n}/{total} 个 PNG", "Icons: {n}/{total} PNGs loaded"],
-    "about.contact": ["联系", "Contact"],
-    "about.contactHint": ["遇到问题、想提需求，或想聊聊工作流，欢迎发邮件。", "Questions, feature requests or workflow ideas? Send an email."],
-    "about.email": ["联系我们", "Contact us"],
-    "about.emailSubject": ["Krea for Ps v{version} 反馈", "Krea for Ps v{version} feedback"],
-    "about.emailOpened": ["已打开邮件客户端", "Mail app opened"],
-    "about.emailCopied": ["无法打开邮件客户端，已复制作者邮箱：{email}", "Could not open the mail app; author email copied: {email}"],
-    "about.emailFailed": ["无法打开邮件客户端，请手动发送到 {email}", "Could not open the mail app; please email {email}"],
+    "about.intro": ["插件简介", "Plugin overview"],
+    "about.introBody": [
+      "Krea for PS 是直连 Krea Open API 的原生 Photoshop 面板插件。支持选区驱动式 AI 图像生成与编辑，内置 44 款云端模型（Krea 2/3、Nano Banana、GPT-Image、Flux、Seedream 等），生成内容自动适配选区并以独立图层置入文档；搭载 Node App 工作流、提示词词库与边缘羽化功能，兼容 Photoshop 2021+。",
+      "Krea for PS is a native Photoshop panel plugin that connects directly to the Krea Open API. It supports selection-driven AI image generation and editing with 44 cloud models (Krea 2/3, Nano Banana, GPT-Image, Flux, Seedream, etc.). Outputs auto-fit the selection and are imported as separate layers. It features Node App workflow integration, prompt library and edge feathering, compatible with Photoshop 2021+."
+    ],
     "about.function": ["功能介绍", "Features"],
     "about.quickStart": ["快速开始", "Quick Start"],
     "about.why": [
@@ -355,6 +362,9 @@ window.KREA_I18N = (function () {
     "settings.resetConfirm": ["将清除 Token、App 缓存、历史、自定义词库和缩略图缓存。确定吗？", "This clears the token, app cache, history, your custom library and the thumbnail cache. Continue?"],
     "settings.resetDone": ["已重置全部数据", "All data cleared"],
     "settings.cacheCleared": ["App 缓存已清空", "App cache cleared"],
+    "settings.update": ["插件更新", "Plugin updates"],
+    "settings.checkUpdate": ["检测更新", "Check for updates"],
+    "settings.checkingUpdate": ["正在检测更新…", "Checking for updates…"],
 
     /* ------------------------------------------------------------- 字段名 */
     "field.prompt": ["提示词", "Prompt"],

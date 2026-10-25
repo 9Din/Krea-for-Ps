@@ -28,9 +28,11 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.3.3";
-  var AUTHOR_EMAIL = "zhiwei.feng@hba.com";
+  var VERSION = "2.3.5";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
+  /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
+  var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
+  var AUTHOR_TEAMS_CHAT_URL = "https://teams.microsoft.com/l/chat/0/0";
   /* 已保存 Token 在输入框里的固定掩码（30 个星号），不把真实值回填到 DOM。 */
   var TOKEN_MASK = "******************************";
   var KREA_ASSETS = "https://www.krea.ai/assets";
@@ -3966,6 +3968,62 @@ $("promptName").value = it ? libText(it.name) : "";
     }
   }
 
+  /**
+   * 清除插件保存在本机的全部数据（重置全部数据时使用）。
+   */
+  async function clearAllLocalData() {
+    var firstError = null;
+    try { await S.clearToken(); } catch (e) { firstError = e; }
+    await S.removeFile(APPS_CACHE);
+    await S.removeFile("apps-custom.json");
+    await S.removeFile(HISTORY_FILE);
+    await S.removeFile(LIBRARY_FILE);
+    await S.removeFile("krea-output.png");
+    await S.removeFile("storage-status.json");
+    try { await S.resetPrefs(); } catch (e) { firstError = firstError || e; }
+    try {
+      localStorage.removeItem("krea.ps.lang");
+      localStorage.removeItem("krea.ps.uiLang");
+    } catch (e) { /* ignore */ }
+    if (firstError) throw firstError;
+  }
+
+  /** 清除本机数据后同步清掉内存状态，避免本次会话继续沿用旧 Token / 偏好 / 结果。 */
+  function resetSessionAfterClear() {
+    st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
+    st.tab = "apps";
+    st.appFilter = "all";
+    st.model = MODELS.defaultModel;
+    st.apps = [];
+    st.customApps = [];
+    st.appsFetchedAt = 0;
+    st.appsError = null;
+    st.appsCursor = null;
+    st.appsHasMore = false;
+    st.history = [];
+    st.library = JSON.parse(JSON.stringify(DEFAULT_LIBRARY));
+    st.pendingPrompt = null;
+    st.currentApp = null;
+    st.appForm = null;
+    st.source = null;
+    st.refs = [];
+    st.chatHistory = [];
+    st.lastSnapshot = null;
+    st.genAgain = false;
+    st.lastGenShot = null;
+    st.lastGenSelection = null;
+    st.lastExportPath = "";
+    // 缩略图只存在内存，但清除数据也要立即释放，并阻止在途请求写回。
+    resetAssetHistory();
+    hideExportResult();
+    API.setToken(null);
+    st.token = null;
+    setupReturn = "screenSettings";
+    setupCanReturn = false;
+    updateSetupBadge();
+    setSetupNotice(T("setup.notTested"), "muted");
+  }
+
   /* ============================== 设置 ============================== */
   async function renderSettings() {
     $("setTokenBadge").textContent = API.hasToken() ? T("settings.tokenOk") : T("settings.tokenMissing");
@@ -4000,6 +4058,19 @@ $("promptName").value = it ? libText(it.name) : "";
   }
 
   /* ============================== 关于 ============================== */
+  /** Microsoft Teams 深链：唤起客户端并打开与作者的对话，预填主题和消息。 */
+  function teamsContactUrl() {
+    return AUTHOR_TEAMS_CHAT_URL +
+      "?users=" + encodeURIComponent(AUTHOR_TEAMS_EMAIL) +
+      "&topicName=" + encodeURIComponent(T("about.contactTopic")) +
+      "&message=" + encodeURIComponent(T("about.contactMessage", { version: VERSION }));
+  }
+
+  async function contactAuthor() {
+    var opened = await tryOpenExternal(teamsContactUrl());
+    toast(T(opened ? "about.contactOpening" : "about.contactFailed"), opened ? "ok" : "error");
+  }
+
   function renderAbout() {
     var versionEl = $("aboutVersion");
     if (versionEl) versionEl.textContent = "v" + VERSION;
@@ -4031,7 +4102,7 @@ $("promptName").value = it ? libText(it.name) : "";
   /* ============================== 更新检查 ============================== */
   var updateState = { checking: false, notified: false };
 
-  /** 取出每一段数字，"v2.3.3-beta" -> [2, 3, 3]。 */
+  /** 取出每一段数字，"v2.3.4-beta" -> [2, 3, 4]。 */
   function versionParts(value) {
     var nums = String(value || "").trim().replace(/^v/i, "").match(/\d+/g);
     if (!nums) return [];
@@ -4076,14 +4147,28 @@ $("promptName").value = it ? libText(it.name) : "";
    * 加时间戳绕过 raw.githubusercontent 的缓存；不调用 GitHub API，避免限流。
    */
   async function fetchUpdateManifest() {
-    var ac = new AbortController();
-    var timer = setTimeout(function () { ac.abort(); }, UPDATE_TIMEOUT);
+    // UXP / 测试环境不一定有 AbortController：有就用它中断请求，没有就靠
+    // Promise.race 超时，避免更新检查把静默启动流程挂住。
+    var ac = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = null;
+    var timeout = new Promise(function (resolve, reject) {
+      timer = setTimeout(function () {
+        if (ac) { try { ac.abort(); } catch (e) {} }
+        var timeoutErr = new Error("timeout");
+        timeoutErr.code = "timeout";
+        reject(timeoutErr);
+      }, UPDATE_TIMEOUT);
+    });
     try {
-      var res = await fetch(UPDATE_URL + "?t=" + Date.now(), {
+      var opts = {
         method: "GET",
-        headers: { "Accept": "application/json" },
-        signal: ac.signal
-      });
+        headers: { "Accept": "application/json" }
+      };
+      if (ac) opts.signal = ac.signal;
+      var res = await Promise.race([
+        fetch(UPDATE_URL + "?t=" + Date.now(), opts),
+        timeout
+      ]);
       if (!res.ok) {
         var httpErr = new Error("HTTP " + res.status);
         httpErr.code = res.status === 404 ? "no_manifest" : "http_" + res.status;
@@ -4105,13 +4190,13 @@ $("promptName").value = it ? libText(it.name) : "";
       }
       throw e;
     } finally {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
     }
   }
 
   /**
    * 检测更新。
-   *   checkForUpdates()                —— About 里手动点，失败会提示原因；
+   *   checkForUpdates()                —— 设置里手动点，失败会提示原因；
    *   checkForUpdates({silent:true})   —— 启动时静默检查，失败不打扰用户，
    *                                       只有发现新版本才 toast 一次。
    * .ccx 不能静默替换，确认后只负责打开下载地址，由用户双击安装。
@@ -4122,16 +4207,16 @@ $("promptName").value = it ? libText(it.name) : "";
     var btn = $("btnCheckUpdate");
 
     if (updateState.checking) {
-      if (!silent) toast(T("about.checkingUpdate"), "ok");
+      if (!silent) toast(T("settings.checkingUpdate"), "ok");
       return;
     }
     updateState.checking = true;
     if (!silent) {
       if (btn) {
         btn.disabled = true;
-        btn.textContent = T("about.checkingUpdate");
+        btn.textContent = T("settings.checkingUpdate");
       }
-      toast(T("about.checkingUpdate"), "ok");
+      toast(T("settings.checkingUpdate"), "ok");
     }
 
     try {
@@ -4182,29 +4267,8 @@ $("promptName").value = it ? libText(it.name) : "";
       updateState.checking = false;
       if (!silent && btn) {
         btn.disabled = false;
-        btn.textContent = T("about.checkUpdate");
+        btn.textContent = T("settings.checkUpdate");
       }
-    }
-  }
-
-  /**
-   * 打开系统邮件客户端，收件人固定为作者邮箱。
-   * UXP 需要 manifest 的 launchProcess.schemes 包含 "mailto"；
-   * 如果宿主没有邮件客户端，则退化为复制邮箱地址。
-   */
-  async function contactAuthor() {
-    var subject = T("about.emailSubject", { version: VERSION });
-    var url = "mailto:" + AUTHOR_EMAIL + "?subject=" + encodeURIComponent(subject);
-    var opened = await tryOpenExternal(url);
-    if (opened) {
-      toast(T("about.emailOpened"), "ok");
-      return;
-    }
-    try {
-      await navigator.clipboard.write({ "text/plain": AUTHOR_EMAIL });
-      toast(T("about.emailCopied", { email: AUTHOR_EMAIL }), "ok");
-    } catch (e) {
-      toast(T("about.emailFailed", { email: AUTHOR_EMAIL }), "error");
     }
   }
 
@@ -4962,8 +5026,6 @@ $("promptName").value = it ? libText(it.name) : "";
       renderSettings();
     });
 
-    var aboutContact = $("btnAboutContact");
-    if (aboutContact) aboutContact.addEventListener("click", contactAuthor);
     var checkUpdate = $("btnCheckUpdate");
     if (checkUpdate) checkUpdate.addEventListener("click", checkForUpdates);
 
@@ -5178,57 +5240,16 @@ $("appFilters").addEventListener("click", function (ev) {
     $("btnReset").addEventListener("click", async function () {
       if (!(await confirmSheet(T("settings.resetConfirm")))) return;
       try {
-        await S.clearToken();
+        await clearAllLocalData();
       } catch (e) {
         toast(T("err.generic", { msg: errMsg(e) }), "error");
         return;
       }
-      await S.removeFile(APPS_CACHE);
-      await S.removeFile("apps-custom.json");
-      await S.removeFile(HISTORY_FILE);
-      await S.removeFile(LIBRARY_FILE);
-      try {
-        await S.resetPrefs();
-      } catch (e) {
-        toast(T("err.generic", { msg: errMsg(e) }), "error");
-        return;
-      }
-      // 存储清空后同步清掉内存状态，否则本次会话仍会沿用旧偏好 / 旧结果。
-      st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
-      st.tab = "apps";
-      st.appFilter = "all";
-      st.model = MODELS.defaultModel;
-      st.apps = [];
-      st.customApps = [];
-      st.appsFetchedAt = 0;
-      st.appsError = null;
-      st.appsCursor = null;
-      st.appsHasMore = false;
-      st.history = [];
-      st.library = JSON.parse(JSON.stringify(DEFAULT_LIBRARY));
-      st.pendingPrompt = null;
-      st.currentApp = null;
-      st.appForm = null;
-      st.source = null;
-      st.refs = [];
-      st.chatHistory = [];
-      st.lastSnapshot = null;
-      st.genAgain = false;
-      st.lastGenShot = null;
-      st.lastGenSelection = null;
-      st.lastExportPath = "";
-      // 缩略图只存在内存，但「重置全部数据」也要立即释放，并阻止在途请求写回。
-      resetAssetHistory();
-      hideExportResult();
-      API.setToken(null);
-      st.token = null;
-      setupReturn = "screenSettings";
-      setupCanReturn = false;
-      updateSetupBadge();
-      setSetupNotice(T("setup.notTested"), "muted");
+      resetSessionAfterClear();
       toast(T("settings.resetDone"), "ok");
       show("screenSetup");
     });
+    $("btnAboutContact").addEventListener("click", contactAuthor);
 
     if (window.addEventListener) window.addEventListener("resize", function () { fitChatStream(); });
     syncSearchClear();
@@ -5577,6 +5598,7 @@ check("api.token", API.hasToken(), API.hasToken() ? "ok" : "not configured");
     compareVersions: compareVersions,
     safeUpdateUrl: safeUpdateUrl,
     checkForUpdates: checkForUpdates,
+    teamsContactUrl: teamsContactUrl,
     validateRequired: validateRequired,
     buildForm: buildForm,
     normalizeApp: normalizeApp,

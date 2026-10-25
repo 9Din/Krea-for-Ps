@@ -1,6 +1,0 @@
-{
-  "version": "2.3.3",
-  "notes": "修复重启后重复要求输入 Token；新增「检测更新」；恢复资产页。",
-  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.3.3/Krea-for-Ps-2.3.3.ccx",
-  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.3.3"
-}

@@ -16,20 +16,28 @@ Requires Photoshop 22.5+ (UXP).
 
 The panel checks
 [`update.json`](https://raw.githubusercontent.com/9Din/Krea-for-Ps/main/update.json)
-on startup (silently) and from **Settings → About → Check for updates**.
+on startup (silently) and from **Settings → Plugin updates → Check for updates**.
 A new version opens the GitHub download page; `.ccx` files cannot be replaced
-silently, so installation stays a user action.
+silently, so installation stays a user action. The in-panel check only reports the
+new version — Creative Cloud performs the actual install when you open the
+downloaded `.ccx`. There is no in-plugin update or self-uninstall API in UXP.
+
+## Contact
+
+**About → Contact us** opens a Microsoft Teams chat with the author, prefilled
+with the running plugin version. The Teams desktop app (or a browser signed in
+to Teams) must be available.
 
 ## Versioning
 
 Patch numbers stay single-digit for easy verbal reference:
-`2.3.3 → 2.3.4 → … → 2.3.9 → 2.4.0`. Do not use `2.3.10`.
+`2.3.4 → 2.3.5 → … → 2.3.9 → 2.4.0`. Do not use `2.3.10`.
 
 Release naming:
 
-- Tag: `v2.3.3`
-- Title: `Krea for Ps 2.3.3`
-- Asset: `Krea-for-Ps-2.3.3.ccx`
+- Tag: `v2.3.5`
+- Title: `Krea for Ps 2.3.5`
+- Asset: `Krea-for-Ps-2.3.5.ccx`
 
 ## Source layout
 

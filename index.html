@@ -10,7 +10,7 @@
 	<body>
 		<div id="app">
 			<!-- 版本戳：由构建脚本写入，main.js 启动时会和自身 VERSION 比对 -->
-			<div id="buildStamp" hidden data-version="2.3.3">
+			<div id="buildStamp" hidden data-version="2.3.5">
 			</div>
 			<!-- ============================ 顶部品牌栏 ============================ -->
 			<header class="header">
@@ -551,6 +551,14 @@
 							清空 App 缓存只删除本地的 App 列表；重置全部数据还会退出登录并清除历史、自定义词库和偏好。
 						</sp-body>
 					</div>
+					<div class="card tight">
+						<div class="card-title">
+							<sp-heading size="s" data-i18n="settings.update">插件更新</sp-heading>
+						</div>
+						<div class="row wrap-row">
+							<sp-button id="btnCheckUpdate" size="s" variant="secondary" data-i18n="settings.checkUpdate">检测更新</sp-button>
+						</div>
+					</div>
 				</section>
 				<!-- ------------------------------ 关于 ------------------------------ -->
 				<section class="screen" id="screenAbout" hidden>
@@ -565,10 +573,10 @@
 								<div class="about-name">Krea for Ps</div>
 								<div class="about-version">
 									<span data-i18n="about.version">当前版本</span>
-									<span id="aboutVersion">v2.3.3</span>
+									<span id="aboutVersion">v2.3.5</span>
 								</div>
 							</div>
-							<sp-button id="btnCheckUpdate" size="s" variant="secondary" data-i18n="about.checkUpdate">检测更新</sp-button>
+							<sp-button id="btnAboutContact" class="about-contact-btn" size="s" variant="secondary" data-i18n="about.contact">联系我们</sp-button>
 						</div>
 						<div class="about-changelog" id="aboutChangelog" data-i18n="about.why">
 							为什么做这个插件?
@@ -580,6 +588,52 @@
 						</div>
 						<div class="tiny muted" id="aboutMeta" style="margin-top:6px;">—</div>
 						<div class="tiny muted" id="aboutIconPack" style="margin-top:2px;">—</div>
+					</div>
+
+					<div class="card tight">
+						<div class="section-title">
+							<span data-i18n="about.quickStart">快速开始</span>
+							<span class="rule"></span>
+						</div>
+						<div class="about-copy" data-i18n="about.quickStartIntro">首次使用按下面 5 步完成；之后打开面板即可直接生成。</div>
+						<div class="about-steps">
+							<div class="about-step">
+								<span class="about-step-no">1</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step1Title">获取 API Token</div>
+									<div class="about-step-desc" data-i18n="about.step1Body">在 Krea 官网的 API Tokens 页面创建 Token 并复制；也可以直接在「连接 Krea API」页点击「获取 Token」。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">2</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step2Title">连接面板</div>
+									<div class="about-step-desc" data-i18n="about.step2Body">在 Photoshop 打开 Krea for Ps，粘贴 Token 后保存；状态显示「已连接」即完成。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">3</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step3Title">准备输入</div>
+									<div class="about-step-desc" data-i18n="about.step3Body">画好选区后直接点「生成」；没有选区时会提示先创建选区。需要参考图时可继续添加。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">4</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step4Title">选择模型与提示词</div>
+									<div class="about-step-desc" data-i18n="about.step4Body">在模型选择器里按厂商挑选模型；输入提示词。图生图固定使用 0.5 的编辑强度，无需额外设置。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">5</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step5Title">生成与微调</div>
+									<div class="about-step-desc" data-i18n="about.step5Body">选择输出方式（插入为新图层 / 替换原图层），点击「生成」。结果会自动落位；可用「羽化边缘」、提示词历史与词库继续调整。对话和 App 结果还可置入新画布。</div>
+								</div>
+							</div>
+						</div>
+						<div class="about-tip" data-i18n="about.quickStartTip">小贴士：首次使用前请确认 Token 有效；生成失败时先检查网络与 Token。大图或高分辨率模型可能需要更长时间，可在进度浮层中取消。</div>
 					</div>
 
 					<div class="card tight">
@@ -641,64 +695,12 @@
 
 					<div class="card tight">
 						<div class="section-title">
-							<span data-i18n="about.quickStart">快速开始</span>
+							<span data-i18n="about.intro">插件简介</span>
 							<span class="rule"></span>
 						</div>
-						<div class="about-copy" data-i18n="about.quickStartIntro">首次使用按下面 5 步完成；之后打开面板即可直接生成。</div>
-						<div class="about-steps">
-							<div class="about-step">
-								<span class="about-step-no">1</span>
-								<div class="about-step-body">
-									<div class="about-step-title" data-i18n="about.step1Title">获取 API Token</div>
-									<div class="about-step-desc" data-i18n="about.step1Body">在 Krea 官网的 API Tokens 页面创建 Token 并复制；也可以直接在「连接 Krea API」页点击「获取 Token」。</div>
-								</div>
-							</div>
-							<div class="about-step">
-								<span class="about-step-no">2</span>
-								<div class="about-step-body">
-									<div class="about-step-title" data-i18n="about.step2Title">连接面板</div>
-									<div class="about-step-desc" data-i18n="about.step2Body">在 Photoshop 打开 Krea for Ps，粘贴 Token 后保存；状态显示「已连接」即完成。</div>
-								</div>
-							</div>
-							<div class="about-step">
-								<span class="about-step-no">3</span>
-								<div class="about-step-body">
-									<div class="about-step-title" data-i18n="about.step3Title">准备输入</div>
-									<div class="about-step-desc" data-i18n="about.step3Body">画好选区后直接点「生成」；没有选区时会提示先创建选区。需要参考图时可继续添加。</div>
-								</div>
-							</div>
-							<div class="about-step">
-								<span class="about-step-no">4</span>
-								<div class="about-step-body">
-									<div class="about-step-title" data-i18n="about.step4Title">选择模型与提示词</div>
-									<div class="about-step-desc" data-i18n="about.step4Body">在模型选择器里按厂商挑选模型；输入提示词。图生图固定使用 0.5 的编辑强度，无需额外设置。</div>
-								</div>
-							</div>
-							<div class="about-step">
-								<span class="about-step-no">5</span>
-								<div class="about-step-body">
-									<div class="about-step-title" data-i18n="about.step5Title">生成与微调</div>
-									<div class="about-step-desc" data-i18n="about.step5Body">选择输出方式（插入为新图层 / 替换原图层），点击「生成」。结果会自动落位；可用「羽化边缘」、提示词历史与词库继续调整。对话和 App 结果还可置入新画布。</div>
-								</div>
-							</div>
+						<div class="about-copy" data-i18n="about.introBody">
+							Krea for PS 是直连 Krea Open API 的原生 Photoshop 面板插件。支持选区驱动式 AI 图像生成与编辑，内置 44 款云端模型（Krea 2/3、Nano Banana、GPT-Image、Flux、Seedream 等），生成内容自动适配选区并以独立图层置入文档；搭载 Node App 工作流、提示词词库与边缘羽化功能，兼容 Photoshop 2021+。
 						</div>
-						<div class="about-tip" data-i18n="about.quickStartTip">小贴士：首次使用前请确认 Token 有效；生成失败时先检查网络与 Token。大图或高分辨率模型可能需要更长时间，可在进度浮层中取消。</div>
-					</div>
-
-					<div class="card tight">
-						<div class="section-title">
-							<span data-i18n="about.contact">联系</span>
-							<span class="rule"></span>
-						</div>
-						<sp-body class="tiny muted wrap" data-i18n="about.contactHint">
-							遇到问题、想提需求，或想聊聊工作流，欢迎发邮件。
-						</sp-body>
-						<div class="about-email">
-							Work of HBA Xiamen
-						</div>
-						<sp-button id="btnAboutContact" size="s" variant="secondary" data-i18n="about.email">
-							联系我们
-						</sp-button>
 					</div>
 				</section>
 			</div>
