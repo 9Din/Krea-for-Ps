@@ -1,0 +1,6 @@
+{
+  "version": "2.3.5",
+  "notes": "关于页新增「联系我们」按钮，可直接唤起 Microsoft Teams 与作者对话；设置页新增「插件更新」卡片，可手动检测版本；移除「卸载插件」入口和说明；关于页补充插件简介与快速开始。",
+  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.3.5/Krea-for-Ps-2.3.5.ccx",
+  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.3.5"
+}
