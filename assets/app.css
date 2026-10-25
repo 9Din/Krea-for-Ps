@@ -1,0 +1,2047 @@
+/* ============================================================================
+ * Krea for Ps — panel shell
+ * 目标：贴近 Photoshop 24+ 原生面板的观感（Spectrum UXP 组件 + 主题变量）。
+ * 规则：
+ *   1. 不使用固定像素宽度，面板缩放时自适应；
+ *   2. 只使用 --spectrum-* 主题变量，深浅色主题都跟随 PS；
+ *   3. 结构 = header / tabs / scroll body / sticky footer。
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------- 基础主题 */
+:root {
+  --k-bg: var(--spectrum-alias-background-color-default, #232323);
+  --k-bg-2: var(--spectrum-alias-background-color-secondary, #2b2b2b);
+  --k-bg-3: var(--spectrum-alias-background-color-tertiary, #333);
+  --k-border: var(--spectrum-alias-border-color, #4a4a4a);
+  --k-border-2: var(--spectrum-alias-border-color-secondary, #3a3a3a);
+  /* 操作按钮不画描边，靠填充色和文字层级区分；输入框 / 下拉框仍用 --k-border。 */
+  --k-btn-border: transparent;
+  --k-text: var(--spectrum-alias-text-color, #e1e1e1);
+  --k-text-dim: var(--spectrum-alias-text-color-disabled, #909090);
+  --k-blue: #1473e6;
+  --k-green: #2d9d78;
+  --k-red: #d7373f;
+  --k-orange: #e68619;
+  --k-radius: 5px;
+  --k-gap: 6px;
+  /* 图标按钮：各容器用 --k-icon-btn-size 同时控制按钮和图标（图标 = 按钮 × 0.6）。
+     例：header 里用 25px，图标就是 15px；改成 30px，图标就是 18px。 */
+  --k-icon-btn-size: 20px;
+  --k-icon-size: 12px;
+  /* 紧凑控件：所有页面的按钮统一参考 tab 栏字号，并压到 20-22px 高 */
+  --k-btn-height: 20px;
+  --k-btn-font: 11px;
+  --k-ghost-size: 22px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--k-bg);
+  color: var(--k-text);
+  font-family: var(--spectrum-alias-body-text-font-family, "Adobe Clean", sans-serif);
+  font-size: 11px;
+  line-height: 1.35;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+sp-button::part(button),
+sp-action-button::part(button) { cursor: pointer; }
+
+.hidden { display: none !important; }
+
+/* ------------------------------------------------------- 致命错误横幅 */
+#fatalBanner {
+  flex: 0 0 auto;
+  margin: 8px 12px 0;
+  border-color: var(--k-red);
+  color: #ffb4b4;
+  background: rgba(215, 55, 63, .12);
+  white-space: normal;
+}
+
+/* ==========================================================================
+ * 无 Spectrum 环境（PS 2022 等）的原生控件兜底样式
+ * JS 会在 customElements 里找不到 sp-button 时给 <html> 加 .no-spectrum，
+ * 并把面板里的 sp-* 与动态创建的控件替换为原生 input/select/button。
+ * 这里只负责让它们看起来仍然是一个像样的插件面板。
+ * ======================================================================== */
+.no-spectrum button,
+.no-spectrum select,
+.no-spectrum input,
+.no-spectrum textarea {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--k-text);
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.no-spectrum button {
+  cursor: pointer;
+  padding: 3px 7px;
+  line-height: 1.2;
+  /* 与 Spectrum 按钮保持一致：操作按钮默认无描边 */
+  border-color: var(--k-btn-border);
+}
+.no-spectrum button:hover { background: var(--k-bg-2); }
+.no-spectrum button:disabled { opacity: .5; cursor: default; }
+/* 降级环境下过滤 chips / 步进按钮仍保持各自的紧凑尺寸 */
+.no-spectrum .chip {
+  padding: 1px 7px;
+  line-height: 1.3;
+  /* chips 是筛选胶囊，不是操作按钮：保留浅色描边 */
+  border-color: var(--k-border-2);
+}
+.no-spectrum .chip.active:hover { background: var(--k-blue); }
+.no-spectrum .search-clear { border-color: var(--k-border); }
+.no-spectrum .step-btn { padding: 0; line-height: 20px; }
+.no-spectrum textarea { width: 100%; min-height: 56px; resize: vertical; }
+.no-spectrum input[type="text"],
+.no-spectrum input[type="password"],
+.no-spectrum input[type="number"] { width: 100%; }
+.no-spectrum input[type="range"] { width: 100%; padding: 0; background: transparent; border: none; }
+/* 单选按钮不套通用 input 的方框：只保留 UXP 原生的圆形控件 */
+.no-spectrum input[type="radio"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+}
+.no-spectrum select { width: 100%; }
+.no-spectrum optgroup { color: var(--k-text-dim); }
+.no-spectrum .k-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.no-spectrum h3 { font-size: 12px; margin: 2px 0 4px; font-weight: 700; }
+.no-spectrum p { margin: 2px 0; }
+.no-spectrum .k-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--k-border);
+  border-top-color: var(--k-blue);
+  border-radius: 50%;
+  animation: k-spin 0.9s linear infinite;
+  margin: 0 auto;
+}
+@keyframes k-spin { to { transform: rotate(360deg); } }
+/* 原生控件下的按钮排布：底部操作栏与卡片内的按钮不要被拉满 */
+.no-spectrum #footerActions button { white-space: nowrap; }
+/* 无 Spectrum 时 sp-action-button 会降级成原生 button：
+   同样让 header 的按钮尺寸驱动图标尺寸。 */
+.no-spectrum .header .actions button {
+  width: var(--k-icon-btn-size);
+  height: var(--k-icon-btn-size);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  --k-icon-size: calc(var(--k-icon-btn-size) * 0.6);
+}
+
+/* ---------------------------------------------------------------- 布局骨架 */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 顶部品牌栏 */
+.header {
+  display: flex;
+  align-items: center;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--k-border-2);
+  background: var(--k-bg);
+  flex: 0 0 auto;
+}
+.header .brand {
+  width: 22px;
+  height: 22px;
+  margin-right: 10px;
+  border-radius: 5px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+.header .titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.header .titles .name {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header .titles .sub {
+  font-size: 9px;
+  color: var(--k-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header .actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+  flex: 0 0 auto;
+}
+/* 顶部语言 / 设置：模仿 tab 栏，只有图标，没有按钮外框 */
+.header .actions .icon-ghost {
+  width: var(--k-ghost-size);
+  height: var(--k-ghost-size);
+  --k-icon-size: 12px;
+}
+
+/* Tab 栏 */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--k-border-2);
+  flex: 0 0 auto;
+  background: var(--k-bg);
+}
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--k-text-dim);
+  font: inherit;
+  font-weight: 600;
+  padding: 4px 8px 5px;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+/* 标签按钮用 <div role="tab">：UXP 的原生 <button> 只绘制文字标签，会吞掉里面的 <img>。
+   图标盒子这里显式给宽高，避免 UXP 把 inline-flex 的 span 算成 0 宽。 */
+.tab .tab-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  overflow: hidden;
+}
+.tab .tab-ico img,
+.tab .tab-ico svg { display: block; width: 12px; height: 12px; }
+
+/* 原生 select（模型下拉 / 词库分类 / App 表单枚举都用它，避免 sp-picker 的动态插槽问题） */
+select,
+select.k-select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--k-text);
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+select:focus { outline: 1px solid var(--k-blue); }
+optgroup { color: var(--k-text-dim); font-style: normal; font-weight: 700; }
+option { color: var(--k-text); background: var(--k-bg-3); }
+
+/* ============================================================ 图标（PNG）
+ * 不能依赖内联 <svg>：UXP 的 SVG 渲染器官方声明只支持简单图标，实测面板里不显示。
+ * 所有图标都是 icons/ui/dark/*.png（白色，深色主题）与 icons/ui/*.png（深色，浅色主题）。
+ */
+img.k-icon {
+  display: block;
+  /* 源图 24×24（12px 的 2 倍图）。UXP 对 <img> 的 width/height 属性支持不完整，
+     所以图标尺寸有三层兜底：① HTML 属性 ② 生成时写入的 inline style ③ 这条 CSS。
+     千万不要用 `content: url()` 做浅色换图——UXP 的 CSS 不支持 content，
+     某些版本会按源图原始像素渲染，图标会突然变成整张图那么大。 */
+  width: var(--k-icon-size, 12px) !important;
+  height: var(--k-icon-size, 12px) !important;
+  max-width: var(--k-icon-size, 12px);
+  max-height: var(--k-icon-size, 12px);
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+/* action button 的图标尺寸 = 按钮尺寸 × 0.6。
+   父级（例如 .header .actions）只要覆盖 --k-icon-btn-size，
+   按钮和图标会一起缩放，不需要逐个改 img。 */
+sp-action-button {
+  --k-icon-size: calc(var(--k-icon-btn-size, 20px) * 0.3);
+}
+
+/* 图标按钮内边距收紧，否则图标虽小、按钮仍显得很大 */
+sp-action-button[kind="icon"]::part(button),
+sp-action-button[quiet]::part(button) {
+  min-width: 0;
+  padding: 3px 4px;
+  line-height: 0;
+}
+sp-action-button::part(button) { min-width: 0; }
+
+/* ======================================================= 自绘选择器触发器 */
+.dd-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 22px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--k-text);
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.dd-trigger:hover { border-color: var(--k-blue); }
+.dd-trigger .grow { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.dd-trigger .dd-caret { flex: 0 0 auto; opacity: .7; font-size: 9px; }
+.model-trigger { font-weight: 700; }
+/* 中文模型名比英文长（“Nano Banana 2.5 Sunburst（最快）”），
+   触发器里必须允许省略号，否则会把 ▾ 顶出面板 */
+.model-trigger #modelTriggerLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* 内联选择器面板（插在触发按钮下方，普通文档流） */
+.picker-inline {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  margin: 3px 0 5px;
+  padding: 3px;
+  border: 1px solid var(--k-border);
+  border-left: 3px solid var(--k-blue);
+  border-radius: 5px;
+  background: var(--k-bg-2);
+}
+/* 面板挂进纵向字段（对话模型 / 生成模型 / App 表单 / 词库分类）时铺满该字段。
+   词库分类现在也是纵向字段，选择列表不会再出现在触发按钮右侧。 */
+.chat-model-wrap > .picker-inline,
+.model-field > .picker-inline,
+.field > .picker-inline { width: 100%; }
+.picker-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 3px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--k-text-dim);
+  border-bottom: 1px solid var(--k-border-2);
+}
+.picker-head .grow { flex: 1 1 auto; }
+.picker-close {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--k-text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+.picker-close:hover { color: var(--k-text); border-color: var(--k-border); }
+.picker-list {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  /* 左内边距扣掉 .picker-inline 的 3px 左边框，让列表按钮左右留白一致；
+     右侧多留 1px 抵消右边框。 */
+  padding: 3px 7px 2px 5px;
+}
+.picker-group {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--k-text-dim);
+  padding: 4px 5px 2px;
+  border-bottom: 1px solid var(--k-border-2);
+  margin-bottom: 2px;
+}
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 24px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--k-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.picker-item + .picker-item { margin-top: 2px; }
+.picker-item .grow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-item:hover { background: var(--k-bg-3); border-color: var(--k-border-2); }
+.picker-item.sel { background: rgba(38, 128, 235, .18); border-color: var(--k-blue); }
+
+/* 提示词行：标签 + 历史/词库/存入 图标按钮（对齐原版） */
+.prompt-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.prompt-row .grow { flex: 1 1 auto; min-width: 0; }
+.prompt-row sp-action-button::part(button) { width: var(--k-icon-btn-size); height: var(--k-icon-btn-size); padding: 0; }
+.prompt-row .section-title { margin: 0; }
+
+/* radio-group（生成范围 / 输出选项） */
+sp-radio-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin-top: 4px;
+}
+sp-radio { margin: 1px 0; }
+.k-radio-group { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+
+/* 词库分类折叠（沿用原版类名与行为） */
+.library-category-heading {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-top: 8px;
+  background-color: var(--k-bg-2);
+  gap: 6px;
+  font-weight: 700;
+  font-size: 10px;
+}
+.library-category-heading:hover { background-color: var(--k-bg-3); }
+.library-category-heading .grow { flex: 1 1 auto; }
+.category-toggle-icon {
+  width: 12px;
+  text-align: center;
+  font-size: 11px;
+  opacity: .8;
+}
+.library-category-content { padding-left: 10px; }
+
+/* 词库工具 / 列表操作：和顶部“切换语言”“设置”一致，只画图标不画按钮外框 */
+.library-tool { color: var(--k-text-dim); }
+.library-item-action {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  margin-left: 2px;
+}
+.library-item-action img.k-icon { --k-icon-size: 12px; }
+
+/* 分类字段：全宽触发器 + 独立的新建分类输入，选择面板由 JS 插在触发器下方 */
+.library-category-field { gap: 5px; }
+.category-trigger { font-weight: 600; }
+.category-trigger[aria-expanded="true"] { border-color: var(--k-blue); }
+.category-trigger[aria-expanded="true"] .dd-caret { transform: rotate(180deg); }
+.library-category-new {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.library-category-new > span {
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+.library-category-new > .k-input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* 编辑提示词：UXP 的 flex gap 不稳定，和设置页一样改用显式 margin 控制纵向节奏。
+   标签与输入框留 8px，字段之间留 16px，避免名称 / 提示词 / 分类挤在一起。 */
+#screenPromptEdit { gap: 0; }
+#screenPromptEdit > .section-title + .field { margin-top: 10px; }
+#screenPromptEdit > .field + .field { margin-top: 16px; }
+#screenPromptEdit .field { gap: 0; }
+#screenPromptEdit .field > * + * { margin-top: 8px; }
+#screenPromptEdit > #promptError { margin-top: 10px; }
+#screenPromptEdit .prompt-edit-actions { margin-top: 20px; }
+
+/* 编辑提示词：保存按钮放在页面内容末尾，footer 只保留“关于 / 返回” */
+.prompt-edit-actions {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--k-border-2);
+}
+#btnSavePrompt {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+#btnSavePrompt::part(button) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.tab:hover { background: var(--k-bg-2); color: var(--k-text); }
+.tab.active { color: var(--k-text); border-bottom-color: var(--k-blue); }
+
+/* 无外框图标入口（顶部按钮、生成页工具、页脚返回） */
+.icon-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--k-ghost-size);
+  height: var(--k-ghost-size);
+  min-width: var(--k-ghost-size);
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--k-text-dim);
+  cursor: pointer;
+  flex: 0 0 auto;
+  --k-icon-size: 12px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.icon-ghost:hover { background: var(--k-bg-2); color: var(--k-text); }
+.icon-ghost:focus { outline: 1px solid var(--k-blue); outline-offset: 1px; }
+.icon-ghost img.k-icon { pointer-events: none; }
+
+/* 内容区 */
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 9px 9px;
+}
+.screen { display: flex; flex-direction: column; gap: 6px; }
+.screen[hidden] { display: none; }
+
+/* 分区：尽量紧凑，面板本来就窄 */
+.section {
+  border-top: 1px solid var(--k-border-2);
+  padding-top: 6px;
+  margin-top: 6px;
+}
+.section sp-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--k-text);
+}
+/* 生成范围 / 输出选项：宽面板并排、窄面板自动折行 */
+.opts-row { gap: 12px; align-items: flex-start; }
+.opt-col { flex: 1 1 120px; min-width: 108px; border-top: none; padding-top: 0; margin-top: 0; }
+.section sp-radio-group { margin-top: 3px; }
+.section sp-radio { margin: 1px 0; }
+
+/* ============================================================================
+ * 生成页 — 按原版 nano.bannana 插件的层级与间距重建
+ * -------------------------------------------------------------------------- */
+.generate-screen { gap: 8px; }
+.generate-screen sp-field-label {
+  font-size: 1.15em;
+  font-weight: 600;
+  color: var(--k-text);
+}
+.prompt-label-container {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+.prompt-label-container .model-wrap {
+  display: flex;
+  flex-direction: row;
+  /* 下拉面板是插在 .model-field 里的；这里必须顶对齐，
+     否则面板撑高后「模型」两个字会被垂直居中，看起来跟着下拉框跑。 */
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* “模型”两个字不能因为标签宽度不足被逐字竖排；高度与 22px 触发器一致 */
+.prompt-label-container .model-wrap .model-label {
+  flex: 0 0 auto;
+  height: 22px;
+  line-height: 22px;
+  white-space: nowrap;
+}
+/* 触发器外面再包一层纵向容器作为兜底：即使 openPicker 没拿到 modelRow，
+   列表也不会作为横向 flex 的兄弟节点跑到按钮右边。 */
+.prompt-label-container .model-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.prompt-label-container .model-wrap .model-field .dd-trigger {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+/* 提示词标题与右侧三个工具按钮同一行 */
+.prompt-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+}
+.prompt-heading-row .tool-cells {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.tool-cells .icon-ghost {
+  width: var(--k-ghost-size);
+  height: var(--k-ghost-size);
+  --k-icon-size: 12px;
+}
+.prompt-heading-row .generate-prompt-label {
+  display: block;
+  flex: 0 0 auto;
+  margin: 0;
+  white-space: nowrap;
+}
+/* 提示词框：左右都只保留页面自身的 9px 内边距，不再额外右缩 */
+#screenGenerate #promptInput {
+  width: 100%;
+  max-width: 100%;
+  margin-right: 0;
+  min-height: 64px;
+  border-radius: 8px;
+  background: var(--k-bg-2);
+  padding: 7px 9px;
+}
+#screenGenerate .section {
+  border-top: 1px solid var(--k-border-2);
+  padding-top: 10px;
+  margin-top: 14px;
+}
+#screenGenerate .section sp-radio-group { margin-top: 4px; }
+#screenGenerate .section sp-radio { margin: 2px 0; }
+/* 生成范围 / 输出选项：两项并排；窄面板时允许自动换行 */
+#screenGenerate sp-radio-group.radio-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+#screenGenerate sp-radio-group.radio-row sp-radio {
+  flex: 0 0 auto;
+  margin: 0;
+}
+#screenGenerate #generateBtn { align-self: flex-start; }
+#error-message { white-space: normal; word-break: break-word; }
+.feather-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* UXP 的 sp-slider 在部分版本上只会落在 0 / 250，这里改成可直接输入的数字框 */
+#featherAmountInput {
+  flex: 0 0 auto;
+  width: 48px;
+  min-width: 48px;
+  min-height: 22px;
+  height: 22px;
+  padding: 0 4px;
+}
+.step-btn {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 20px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--k-text);
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-btn-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.step-btn:hover { border-color: var(--k-btn-border); background: var(--k-bg-2); }
+.step-btn:active { background: var(--k-bg); }
+.feather-row .feather-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.feather-row sp-label {
+  flex: 0 0 auto;
+  min-width: 18px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.image-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.image-preview-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 120px;
+  max-width: 100%;
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+.image-preview-item img {
+  width: auto;
+  height: auto;
+  max-width: 100px;
+  max-height: 100px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.image-preview-item sp-body,
+.image-preview-item .ref-name {
+  width: 100%;
+  margin: 4px 0 0;
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.image-preview-item .remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 2;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--k-text);
+  cursor: pointer;
+}
+.image-preview-item .remove-btn::part(button) {
+  min-width: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  line-height: 1;
+  font-size: 12px;
+}
+
+/* 底部固定操作栏：上下留 3px 呼吸空间，左右与内容区拉开到 16px */
+.footer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--k-border-2);
+  background: var(--k-bg);
+  padding: 3px 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  /* UXP 的 sp-button 默认很占高度，底部操作栏收紧到 Photoshop 面板的紧凑观感 */
+  --spectrum-button-m-border-size: 0;
+}
+.footer .grow { flex: 1 1 auto; min-width: 0; }
+.footer .footer-about {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  /* 与中间的提示 / 操作区留出明确间隙 */
+  margin-right: 8px;
+}
+.footer .hint {
+  min-width: 0;
+  font-size: 10px;
+  color: var(--k-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 生成页页脚只用文字入口（关于），不占按钮高度 */
+.footer-link {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--k-text-dim);
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 2px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.footer-link:hover { color: var(--k-text); background: var(--k-bg-3); }
+.footer-link:focus { outline: 1px solid var(--k-blue); outline-offset: 1px; }
+
+/* --------------------------------------------------------------- Token 页 */
+/* 两个卡片之间显式留白，不再依赖 UXP 对 flex gap 的支持 */
+.setup-screen { gap: 0; }
+.setup-screen .card + .card { margin-top: 14px; }
+.k-input.token-input {
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--k-bg);
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+.setup-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  flex-wrap: nowrap;
+  margin-top: 10px;
+}
+/* 两列按钮：左列「获取 / 检测」，右列「粘贴 / 保存」。
+   这样保存和粘贴的左边缘始终对齐，不受按钮文字宽度影响。 */
+.setup-action-col {
+  flex: 1 1 50%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.setup-action-col + .setup-action-col { margin-left: 8px; }
+.setup-action-col > * {
+  flex: 0 0 auto;
+  width: 100%;
+}
+.setup-action-col > * + * { margin-top: 6px; }
+/* 旧版两行布局的类名保留，避免外部样式引用时失效。 */
+.setup-submit-actions { margin-top: 6px; }
+.setup-notice { min-height: 13px; }
+.setup-notice.ok { color: #8fd8bd; }
+.setup-notice.error { color: #ff9b9b; }
+
+/* --------------------------------------------------------------- 导入 App */
+/* 操作按钮紧跟在输入框下方，页脚只保留「关于 / 返回」 */
+.import-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 8px;
+}
+.import-actions > * { flex: 0 0 auto; }
+.import-actions > * + * { margin-left: 8px; }
+
+/* --------------------------------------------------------------- 运行 App */
+/* 运行按钮放在 App 表单末尾、页面底部，不再占用固定页脚 */
+.app-run-actions {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--k-border-2);
+}
+#btnRunApp { width: 100%; }
+/* 下载失败恢复条：位于运行按钮上方，重试只下载结果 */
+#appRunRecovery { margin: 2px 0; }
+#appRunRecovery .notice { padding: 7px 8px; }
+#appRunRecovery .recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+#appRunRecovery .recovery-actions sp-button,
+#appRunRecovery .recovery-actions button { flex: 1 1 auto; }
+
+/* 生成页 / 对话页共用的下载恢复条（位于标签栏下方，任何页面都可见） */
+#downloadRecovery { margin: 0 0 4px; }
+#downloadRecovery .notice { padding: 7px 8px; }
+#downloadRecovery .recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+#downloadRecovery .recovery-actions sp-button,
+#downloadRecovery .recovery-actions button { flex: 1 1 auto; }
+
+/* --------------------------------------------------------------- 关于页 */
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--k-border-2);
+}
+.about-logo {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.about-name { font-size: 14px; font-weight: 700; }
+.about-version { margin-top: 2px; font-size: 10px; color: var(--k-text-dim); }
+#btnCheckUpdate { flex: 0 0 auto; }
+.about-changelog {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--k-text-dim);
+  white-space: pre-line;
+  word-break: break-word;
+}
+.about-email { margin-top: 4px; font-size: 11px; }
+#btnAboutContact { margin-top: 8px; align-self: flex-start; }
+/* 关于页：卡片之间显式留白（UXP 的 flex gap 不稳定） */
+#screenAbout { gap: 0; }
+#screenAbout .section-title + .card { margin-top: 8px; }
+#screenAbout .card + .card { margin-top: 10px; }
+/* 关于页正文：保留换行，窄面板里仍保持可读 */
+.about-copy {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.65;
+  color: var(--k-text-dim);
+  white-space: pre-line;
+  word-break: break-word;
+}
+.about-block { margin-top: 8px; }
+.about-subtitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--k-text);
+  margin-bottom: 1px;
+}
+.about-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.about-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.about-step-no {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--k-bg-3);
+  color: var(--k-text);
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.about-step-body { flex: 1 1 auto; min-width: 0; }
+.about-step-title { font-size: 10px; font-weight: 700; color: var(--k-text); }
+.about-step-desc {
+  margin-top: 1px;
+  font-size: 10px;
+  line-height: 1.55;
+  color: var(--k-text-dim);
+  white-space: pre-line;
+  word-break: break-word;
+}
+.about-tip {
+  margin-top: 8px;
+  padding: 5px 6px;
+  border-left: 2px solid var(--k-blue);
+  background: var(--k-bg-3);
+  font-size: 10px;
+  line-height: 1.55;
+  color: var(--k-text-dim);
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+/* 收紧按钮尺寸：所有页面统一参考 tab 栏的 11px 字号。
+ * UXP 的 sp-button 默认约 32px 高，这里普通按钮压到 20px，主 CTA 22px。 */
+sp-button,
+sp-action-button {
+  min-height: 0;
+}
+sp-button::part(button),
+sp-button[variant]::part(button) {
+  min-height: 0;
+  height: 20px;
+  max-height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 4px;
+  /* secondary / cta / warning 都只靠填充色区分，不再画按钮外框 */
+  border-color: var(--k-btn-border);
+}
+sp-button[size="s"]::part(button),
+.footer sp-button::part(button) {
+  min-height: 0;
+  height: 20px;
+  max-height: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 1;
+}
+/* 主 CTA 只比普通按钮高 2px，保持强调但不再笨重 */
+#generateBtn::part(button),
+#btnRunApp::part(button),
+#btnSavePrompt::part(button),
+#chatSendBtn::part(button),
+#btnSaveToken::part(button),
+#btnAboutContact::part(button) {
+  min-height: 22px;
+  height: 22px;
+  max-height: 22px;
+  padding: 0 12px;
+  font-size: 11px;
+  line-height: 1;
+}
+/* 关于页「联系我们」与生成页「生成」按钮同宽同高 */
+#generateBtn,
+#btnAboutContact { min-width: 76px; }
+sp-action-button::part(button) {
+  min-height: 0;
+  height: 20px;
+  max-height: 20px;
+  min-width: 0;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 1;
+  border-color: var(--k-btn-border);
+}
+.header sp-action-button::part(button) { padding: 0 2px; }
+#footerActions { gap: 4px; }
+#footerActions sp-button,
+#footerActions sp-action-button { flex: 0 0 auto; }
+/* 图标按钮统一 20px 点击区，图标本身 12px */
+#footerActions sp-action-button::part(button) { width: var(--k-icon-btn-size); height: var(--k-icon-btn-size); padding: 0; }
+.header .actions sp-action-button::part(button) {
+  width: var(--k-icon-btn-size);
+  height: var(--k-icon-btn-size);
+  padding: 0;
+}
+.header .actions .tab { padding: 2px 5px; font-size: 10px; }
+
+/* ------------------------------------------------------------------ 组件块 */
+.card {
+  border: 1px solid var(--k-border-2);
+  background: var(--k-bg-2);
+  border-radius: var(--k-radius);
+  padding: 8px;
+}
+.card.tight { padding: 6px; }
+.card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--k-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+}
+.section-title .rule { flex: 1 1 auto; height: 1px; background: var(--k-border-2); }
+
+/* 设置页：账户 / 行为 / 数据维护三块之间显式留白 */
+#screenSettings { gap: 0; }
+#screenSettings .section-title + .card { margin-top: 8px; }
+#screenSettings .card + .card { margin-top: 10px; }
+
+.muted { color: var(--k-text-dim); }
+.tiny { font-size: 10px; }
+.mono {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+.wrap { white-space: normal; word-break: break-word; }
+.row { display: flex; align-items: center; gap: 6px; }
+.row.wrap-row { flex-wrap: wrap; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 6px; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  border: 1px solid var(--k-border);
+  color: var(--k-text-dim);
+  background: var(--k-bg-3);
+  white-space: nowrap;
+}
+.badge.ok { color: #fff; background: var(--k-green); border-color: var(--k-green); }
+.badge.warn { color: #fff; background: var(--k-orange); border-color: var(--k-orange); }
+.badge.err { color: #fff; background: var(--k-red); border-color: var(--k-red); }
+.badge.info { color: #fff; background: var(--k-blue); border-color: var(--k-blue); }
+
+.notice {
+  border-radius: var(--k-radius);
+  padding: 6px 8px;
+  font-size: 10px;
+  border: 1px solid var(--k-border-2);
+  background: var(--k-bg-2);
+  color: var(--k-text);
+}
+.notice.error { border-color: var(--k-red); color: #ffb4b4; }
+.notice.warn { border-color: var(--k-orange); color: #ffd9a0; }
+.notice.ok { border-color: var(--k-green); color: #a9e5cf; }
+
+/* --------------------------------------------------------------- App 列表 */
+/* 过滤 chips：收藏夹 / 全部 / 工作区 */
+.chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.chip {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--k-border-2);
+  background: var(--k-bg-2);
+  color: var(--k-text-dim);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  padding: 1px 7px;
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover { color: var(--k-text); border-color: var(--k-border); }
+.chip.active {
+  color: #fff;
+  background: var(--k-blue);
+  border-color: var(--k-blue);
+}
+
+/* --------------------------------------------------------------- 资产页 */
+/* 固定 100×100 缩略图，格间距 8px，左对齐。
+   最小面板（260px）内容区约 242px：2×100 + 8 = 208，稳定排两列；
+   面板变宽后 flex-wrap 自动增加列数（340px 约 3 列，460px 约 4 列）。
+   统一用 flex-wrap 而不是 grid —— UXP 对 grid-template-columns 的
+   auto-fill/minmax 支持不稳定，窄面板会溢出。 */
+.assets-screen { flex: 1 1 auto; min-height: 0; }
+#assetGrid {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 2px 0;
+}
+.asset-card {
+  position: relative;
+  flex: 0 0 100px;
+  width: 100px;
+  height: 100px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--k-bg-3);
+  cursor: pointer;
+}
+/* 卡片和缩略图都固定 100×100，不再随两列拉伸。 */
+.asset-thumb {
+  position: relative;
+  width: 100%;
+  height: 100px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--k-bg-3);
+}
+.asset-thumb-img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* 首次下载缩略图时显示 loading.gif（20/28px 居中，不拉伸整格） */
+.asset-thumb-img.loading {
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  object-fit: contain;
+  opacity: .8;
+}
+/* 没有缩略图（进行中 / 失败 / 视频结果 / 下载失败）时的占位文字 */
+.asset-thumb > .asset-fallback {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  height: auto;
+}
+.asset-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  color: var(--k-text-dim);
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: center;
+  word-break: break-all;
+}
+/* 悬停 / 点按后出现的遮罩与操作按钮（参考“图片悬浮弹出按钮”效果） */
+.asset-actions {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, .55);
+}
+.asset-card:hover .asset-actions,
+.asset-card.actions-open .asset-actions { display: flex; }
+.asset-act {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  border-radius: 4px;
+  background: #fff;
+  color: #222;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 3px 5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.asset-act:hover { background: var(--k-blue); color: #fff; }
+.asset-act.danger:hover { background: var(--k-red); }
+.asset-act:disabled { opacity: .45; cursor: default; }
+.asset-act:disabled:hover { background: #fff; color: #222; }
+/* 左上角状态角标：仅非 completed 的生成任务显示 */
+.asset-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, .62);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.3;
+  pointer-events: none;
+}
+.asset-badge.running { background: rgba(20, 115, 230, .9); }
+.asset-badge.failed { background: rgba(215, 55, 63, .9); }
+.asset-state {
+  padding: 18px 8px;
+  text-align: center;
+  color: var(--k-text-dim);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.asset-loading-gif {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 0 auto 4px;
+  object-fit: contain;
+}
+.asset-state.inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0 2px;
+}
+.asset-state.inline .asset-loading-gif {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+.asset-more {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  height: 24px;
+  border: 1px solid var(--k-border-2);
+  border-radius: 4px;
+  background: var(--k-bg-2);
+  color: var(--k-text-dim);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asset-more:hover { color: var(--k-text); border-color: var(--k-border); }
+
+/* 搜索框：整条搜索栏自绘边框，清空按钮作为普通 flex 子项放在输入框右侧。
+   UXP 里绝对定位的兄弟节点会被输入区盖住，所以不要再用 overlay。 */
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--k-border);
+  border-radius: 14px;
+  /* 与面板底色一致，避免搜索栏像一块深色贴片 */
+  background: var(--k-bg);
+}
+/* 搜索输入用原生 input：整条搜索栏只有外框这一条 1px 细线。
+   部分 UXP 版本不暴露 Spectrum 输入框的 ::part(input)，内层边框去不掉，
+   会和自绘外框叠成「加粗线」，所以这里不再嵌套 Spectrum 输入框。 */
+.search-input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 22px;
+  min-height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  /* UXP 对原生 input 的 transparent 支持不稳，显式给同一个底色，
+     否则内层可能画成纯黑，看起来和面板割裂。 */
+  background: var(--k-bg);
+  color: var(--k-text);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 22px;
+}
+.search-input::placeholder { color: var(--k-text-dim); }
+/* 聚焦只让外框变色，避免原生输入框自己再画一圈内边 */
+.search-field:focus-within { border-color: var(--k-blue); }
+/* 无 Spectrum 环境：同一条外框，内层 input 保持无边框 */
+.no-spectrum .search-field input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--k-bg);
+}
+.search-clear {
+  position: static;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  line-height: 14px;
+  text-align: center;
+  border: 1px solid var(--k-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--k-text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+.search-clear:hover { color: var(--k-text); border-color: var(--k-text-dim); background: var(--k-bg-3); }
+.search-clear:focus { outline: 1px solid var(--k-blue); outline-offset: 1px; }
+/* Apps 工具栏右上角两个纯图标按钮，和 tab 栏一样没有按钮外框 */
+.apps-tool {
+  width: var(--k-ghost-size);
+  height: var(--k-ghost-size);
+  --k-icon-size: 12px;
+}
+
+/* 卡片右侧的收藏星标：纯图标，不画按钮外框 */
+.app-item { position: relative; }
+.app-item .fav-star {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  opacity: .45;
+}
+.app-item .fav-star.on { opacity: 1; }
+.app-item:hover .fav-star { opacity: .85; }
+
+.app-list { display: flex; flex-direction: column; gap: 0; }
+/* 「共 N 个」与第一张卡片之间再增加 5px（UXP 的父级 flex gap 不可靠，显式加 margin） */
+#appsStatus + .app-list { margin-top: 5px; }
+/* UXP 对 flex gap 支持不一致，改用相邻项 margin 保证每张卡片之间有间隙 */
+.app-list .app-item + .app-item { margin-top: 7px; }
+.app-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--k-border-2);
+  border-radius: var(--k-radius);
+  background: var(--k-bg-2);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+}
+.app-item:hover { border-color: var(--k-blue); background: var(--k-bg-3); }
+.app-item .thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-border-2);
+}
+.app-item .info { flex: 1 1 auto; min-width: 0; }
+/* 工作区徽章同时带 .info 类，会被上面的 .app-item .info 拉成整行；
+   这里复位成内容宽度，与「Public」徽章一致。 */
+.app-item .name .badge {
+  flex: 0 0 auto;
+  align-self: center;
+}
+.app-item .name {
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.app-item .desc {
+  color: var(--k-text-dim);
+  font-size: 10px;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* 作者和版本各是一个 span；UXP 的 flex gap 不稳定，分隔点改为显式元素 + 相邻 margin。 */
+.app-item .meta {
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+}
+.app-item .meta > * + * { margin-left: 4px; }
+.app-item .meta .app-meta-sep { opacity: .75; }
+
+/* 缩略图预览 */
+.thumb-strip { display: flex; flex-wrap: wrap; gap: 5px; }
+.thumb-cell {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  border: 1px solid var(--k-border-2);
+  background: var(--k-bg-3);
+  overflow: hidden;
+}
+.thumb-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb-cell .x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  line-height: 15px;
+  text-align: center;
+  border: none;
+  padding: 0;
+  background: rgba(0, 0, 0, .65);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+}
+.thumb-cell .tag {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  font-size: 8px;
+  background: rgba(0, 0, 0, .6);
+  color: #fff;
+  text-align: center;
+  padding: 1px 0;
+}
+
+/* ---------------------------------------------------------------- 表单控件 */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > .flabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--k-text);
+}
+.field > .flabel .req { color: var(--k-red); }
+.field > .fdesc { font-size: 9px; color: var(--k-text-dim); }
+.field .control { display: flex; align-items: center; gap: 6px; }
+.field .control sp-slider { flex: 1 1 auto; min-width: 60px; }
+/* 旧版静态 sp-slider 降级成原生 range 时的兜底样式；App 表单已改用下方自绘滑杆 */
+.field .control .k-range {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 60px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  accent-color: var(--k-blue);
+}
+/* App 表单滑杆：完全自绘，不依赖 UXP 的 sp-slider / 原生 range 拖动实现。
+   部分 Photoshop 版本里两者都拖不动，因此轨道、填充和圆点全部用普通 div。 */
+.field .control .k-slider {
+  position: relative;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 60px;
+  height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.field .control .k-slider-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 7px;
+  height: 4px;
+  max-height: 4px;
+  background: var(--k-border-2);
+  /* UXP 对细长元素的 border-radius 支持有 bug（999px 会变成巨大三角），这里保持直角。 */
+  border-radius: 0;
+  pointer-events: none;
+}
+.field .control .k-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 7px;
+  height: 4px;
+  max-height: 4px;
+  width: 0;
+  background: var(--k-blue);
+  border-radius: 0;
+  pointer-events: none;
+}
+.field .control .k-slider-knob {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--k-blue);
+  border: 2px solid var(--k-bg-2);
+  border-radius: 50%;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.field .control .k-slider:focus {
+  outline: 1px solid var(--k-blue);
+  outline-offset: 2px;
+}
+.field .control .k-range-val {
+  flex: 0 0 52px;
+  width: 52px;
+  min-width: 52px;
+  min-height: 22px;
+  height: 22px;
+  padding: 0 4px;
+  text-align: right;
+}
+.field .val {
+  min-width: 34px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--k-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.field sp-textfield, .field sp-textarea, .field sp-picker { width: 100%; }
+
+/* 所有页面的文本框统一用原生 input / textarea：
+   部分 UXP 版本不暴露 sp-textfield 的 ::part(input)，内层 2px 边框去不掉。
+   统一自绘 1px 外框后，Token、提示词、对话、词库、导入和 App 表单的边线粗细一致。 */
+.k-input,
+.k-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 4px 7px;
+  border: 1px solid var(--k-border);
+  border-radius: 5px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--k-bg-3);
+  color: var(--k-text);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.k-input { min-height: 24px; }
+.k-textarea {
+  min-height: 52px;
+  padding: 5px 8px;
+  resize: vertical;
+}
+.k-input:focus,
+.k-textarea:focus { border-color: var(--k-blue); }
+.k-input::placeholder,
+.k-textarea::placeholder { color: var(--k-text-dim); }
+
+.adv-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border: 1px solid var(--k-border-2);
+  border-radius: var(--k-radius);
+  background: var(--k-bg-2);
+  font-weight: 700;
+  font-size: 10px;
+}
+.adv-toggle:hover { background: var(--k-bg-3); }
+
+/* 列表项（历史 / 提示词库） */
+.list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.list-item:hover { background: var(--k-bg-2); border-color: var(--k-border-2); }
+.list-item .txt {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 10px;
+  max-height: 44px;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------- 内联提示区（进度/确认）
+ * 不用 position:fixed —— UXP 不支持，浮层会跑到看不见的地方。
+ * 这里固定在标签栏下方，普通文档流，一定可见。
+ */
+#sheetHost { flex: 0 0 auto; padding: 0 8px; }
+#sheetHost:empty { display: none; }
+.inline-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  margin: 5px 0 2px;
+  padding: 6px 8px;
+  background: var(--k-bg-2);
+  border: 1px solid var(--k-border);
+  border-left: 3px solid var(--k-blue);
+  border-radius: 5px;
+}
+.inline-sheet.hidden { display: none; }
+.inline-sheet .row { display: flex; align-items: center; gap: 7px; }
+/* 运行框左侧的动态加载图（loading.gif 的 8 帧 PNG，由 main.js 播放）。
+ * 显式给尺寸，避免 UXP 按 64px 原图尺寸撑开行高。 */
+.progress-gif {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: block;
+}
+.inline-sheet sp-heading { margin: 0; }
+/* 更新说明由 update.json 的 notes 提供，保留其中手动换行。 */
+#confirmMessage { white-space: pre-line; }
+.inline-sheet .stack { width: 100%; }
+
+/* 词库导出结果卡片：路径完整可读，操作按钮换行不溢出 */
+.export-result {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.export-result-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--k-text);
+}
+.export-result-path {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--k-text-dim);
+  white-space: normal;
+  word-break: break-all;
+}
+.inline-sheet .export-result-actions {
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 0;
+}
+.export-result-actions > * { flex: 0 0 auto; }
+.export-result-actions > * + * { margin-left: 6px; }
+
+#progressLabel { font-size: 11px; font-weight: 600; }
+#progressDetail { font-size: 10px; color: var(--k-text-dim); min-height: 12px; }
+
+/* ---------------------------------------------------------------- Toast */
+/* Toast：同样不用 fixed，放进 #sheetHost 里做普通区块 */
+#toastHost {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#toastHost:empty { display: none; }
+.toast {
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 10px;
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-border);
+  border-left: 3px solid var(--k-border-2);
+  color: var(--k-text);
+}
+.toast.error { border-left-color: var(--k-red); color: #ffb4b4; }
+.toast.ok { border-left-color: var(--k-green); color: #a9e5cf; }
+
+/* 骨架 / 空态 */
+.empty {
+  padding: 16px 10px;
+  text-align: center;
+  color: var(--k-text-dim);
+  font-size: 10px;
+}
+
+/* ========================================================== Spectrum 控件紧凑化
+ * Spectrum 的输入类控件是按桌面尺寸设计的：文本框默认 32px 高，复选 / 单选
+ * 每行 28px 上下，放进 300px 宽的面板就会显得「什么都偏大」。这里把
+ * 输入区、行距和字段标签统一收一档。
+ *
+ * ::part(input) / ::part(textarea) 在部分 PS 版本里没有暴露，浏览器会直接
+ * 丢掉整条规则 —— 属于锦上添花；真正的兜底是 host 上的 min-height: 0。
+ * ===================================================================== */
+sp-textfield,
+sp-textarea,
+sp-checkbox,
+sp-radio,
+sp-radio-group,
+sp-slider {
+  min-height: 0;
+}
+/* 输入框统一限制为 1px：不同 UXP 版本对 Spectrum 边框的实现不一样，
+   这里同时覆盖新旧两套变量名，并在 ::part 可用的版本里兜底。 */
+sp-textfield,
+sp-textarea {
+  --spectrum-textfield-border-size: 1px;
+  --spectrum-textfield-border-width: 1px;
+  --spectrum-textarea-border-size: 1px;
+  --spectrum-textarea-border-width: 1px;
+}
+sp-textfield::part(input),
+sp-textarea::part(textarea) {
+  padding: 2px 5px;
+  font-size: 11px;
+  line-height: 1.3;
+  border-width: 1px;
+}
+sp-checkbox,
+sp-radio {
+  margin: 0;
+  font-size: 11px;
+}
+sp-radio-group { margin-top: 2px; gap: 1px; }
+sp-field-label { font-size: 10px; }
+sp-body { font-size: 11px; }
+sp-heading { font-size: 12px; }
+/* 卡片 / 分区里的输入区不要额外撑高 */
+sp-textarea { min-height: 52px; }
+
+/* 链接 */
+.link {
+  color: var(--k-blue);
+  cursor: pointer;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+}
+
+/* ========================================================== 对话式生成（图像 / Banana） */
+/* 对话页独占内容区高度：消息列表自己滚动，输入区永远贴在 footer 上方。
+   UXP 不支持 position:fixed，所以用「body 纵向 flex + stream 撑满剩余高度」实现。 */
+.body.chat-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.body.chat-body .chat-screen {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-top-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.chat-top-row .model-trigger { flex: 1 1 auto; min-width: 0; }
+/* 对话页三个控件都必须按父容器的 content-box 精确收边：
+   UXP 对 <button> / <sp-button> 宿主的 box-sizing 处理不稳定，
+   只写 width:100% 时会把 padding / 边框再加一遍，右侧就会探出面板。 */
+#chatModelTrigger,
+#chatPrompt,
+#chatSendBtn {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
+}
+#chatModelTrigger {
+  /* 长模型名在按钮内部省略，不能把 ▾ 和按钮右边界顶出去 */
+  overflow: hidden;
+}
+#chatModelLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+#chatSendBtn {
+  /* sp-button 宿主本身不承担边框 / 内边距，全部交给内部 button */
+  padding: 0;
+  border: 0;
+  align-self: stretch;
+}
+/* UXP 下 sp-button 的可见背景画在 ::part(button) 上；
+   让内部按钮也按 border-box 计算并严格不超过宿主宽度。 */
+#chatSendBtn::part(button) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.chat-stream {
+  flex: 1 1 0;
+  /* height:0 + flex-grow 是 UXP 下让 stream 真正滚动的关键；
+     同时 main.js 会按面板高度写入显式 maxHeight。 */
+  height: 0;
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px;
+}
+.chat-empty {
+  margin: auto;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--k-text-dim);
+  font-size: 11px;
+}
+.chat-card {
+  flex: 0 0 auto;
+  border: 1px solid var(--k-border-2);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--k-bg);
+}
+/* 多轮对话时单张结果图不再占满整屏，保证历史消息可通过滚动回看 */
+.chat-card img {
+  width: 100%;
+  max-height: 260px;
+  display: block;
+  object-fit: contain;
+  background: #000;
+}
+.chat-card-prompt {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--k-text);
+  border-top: 1px solid var(--k-border-2);
+  word-break: break-word;
+}
+.chat-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px 8px;
+}
+.chat-card-status {
+  padding: 16px 8px;
+  font-size: 11px;
+  color: var(--k-text-dim);
+  text-align: center;
+}
+.chat-card-status.error { color: #ff9b9b; }
+.chat-composer {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--k-border-2);
+  padding-top: 6px;
+}
+.chat-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+/* 「清空对话」紧跟在上传按钮右侧；两个按钮一起靠右，不再显示默认选区徽标。 */
+.chat-source-row sp-button { margin-left: 0; }
+/* 模型触发器外面再包一层纵向容器：
+   openPicker 会把内联列表插到 anchor 后面，没有这层包裹时会插进横向 flex 行里。 */
+.chat-model-wrap {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.chat-model-wrap .model-trigger { flex: 0 0 auto; }
+.chat-card-actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--k-text);
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-btn-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chat-card-actions button:hover { border-color: var(--k-btn-border); background: var(--k-bg-2); }
+

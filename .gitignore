@@ -1,0 +1,7 @@
+# Local build/test helpers and packaged artifacts
+_work/
+dist/
+node_modules/
+*.ccx
+.DS_Store
+Thumbs.db

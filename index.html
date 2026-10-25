@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>
+			Krea for Ps
+		</title>
+		<link rel="stylesheet" href="assets/app.css">
+	</head>
+	<body>
+		<div id="app">
+			<!-- 版本戳：由构建脚本写入，main.js 启动时会和自身 VERSION 比对 -->
+			<div id="buildStamp" hidden data-version="2.3.3">
+			</div>
+			<!-- ============================ 顶部品牌栏 ============================ -->
+			<header class="header">
+				<img class="brand" id="brandIcon" src="icons/dark.png" width="26" height="26" alt="Krea">
+				<div class="titles">
+					<div class="name">
+						Krea for Ps
+					</div>
+					<div class="sub" id="headerSub" data-i18n="header.tagline">
+						Generative Fill · HBA
+					</div>
+				</div>
+				<div class="actions">
+					<div class="icon-ghost header-icon" id="btnLang" role="button" tabindex="0" title="切换语言" data-i18n-title="nav.lang">
+						<img class="k-icon i-lang" data-icon="lang" src="./icons/ui/dark/lang.png" width="12" height="12" alt="" />
+					</div>
+					<div class="icon-ghost header-icon" id="btnSettings" role="button" tabindex="0" title="设置" data-i18n-title="nav.settings">
+						<img class="k-icon i-settings" data-icon="settings" src="./icons/ui/dark/settings.png" width="12" height="12" alt="" />
+					</div>
+				</div>
+			</header>
+			<!-- 致命错误横幅：脚本未加载 / 初始化失败时会显示原因 -->
+			<div id="fatalBanner" class="notice error hidden">
+			</div>
+			<!-- ================================ Tabs ==============================
+            注意：这里必须用 <div role="tab">，不能用 <button>。
+            UXP 的原生 <button> 只把 textContent 当标签文本绘制，内部的 <img> 图标
+            根本不会被画出来（这也是「Apps / 生成 两个 tab 没有图标」的原因）。
+            div 里的 span+img 正常渲染，点击事件照样绑定在 id 上。 -->
+			<nav class="tabs" id="tabBar" role="tablist">
+				<div class="tab active" id="tabApps" role="tab" tabindex="0" aria-selected="true">
+					<span class="tab-ico" data-icon="apps">
+						<img class="k-icon i-apps" data-icon="apps" src="./icons/ui/dark/apps.png" width="12" height="12" alt="" />
+					</span>
+					<span data-i18n="tab.apps">
+						Apps
+					</span>
+				</div>
+				<div class="tab" id="tabGenerate" role="tab" tabindex="0" aria-selected="false">
+					<span class="tab-ico" data-icon="generate">
+						<img class="k-icon i-generate" data-icon="generate" src="./icons/ui/dark/generate.png" width="12" height="12" alt="" />
+					</span>
+					<span data-i18n="tab.generate">
+						生成
+					</span>
+				</div>
+				<div class="tab" id="tabBanana" role="tab" tabindex="0" aria-selected="false">
+					<span class="tab-ico">
+						<img class="k-icon i-chat" data-icon="chat" src="./icons/ui/dark/chat.png" width="12" height="12" alt="" />
+					</span>
+					<span data-i18n="tab.chat">
+						对话
+					</span>
+				</div>
+				<div class="tab" id="tabAssets" role="tab" tabindex="0" aria-selected="false">
+					<span class="tab-ico">
+						<img class="k-icon i-history" data-icon="history" src="./icons/ui/dark/history.png" width="12" height="12" alt="" />
+					</span>
+					<span data-i18n="tab.assets">
+						资产
+					</span>
+				</div>
+			</nav>
+			<!-- ============== 内联提示区（进度 / 确认） ==========================
+            UXP 不支持 position:fixed，浮层会渲染到看不见的位置，
+            所以这里做成固定在标签栏下方的普通区块，一定可见。 -->
+			<div id="sheetHost">
+				<div class="inline-sheet hidden" id="overlayProgress">
+					<div class="row">
+						<!-- 动态加载图：原始 loading.gif + 从它提取的 8 帧 PNG（main.js 逐帧播放）。
+						     UXP 各版本对 GIF 动画支持不一致，运行期用 PNG 逐帧最稳。 -->
+						<img class="progress-gif" id="progressGif" src="./assets/loading/loading.gif"
+							width="20" height="20" alt="" aria-hidden="true" />
+						<span id="progressLabel" data-i18n="common.working">
+							处理中…
+						</span>
+					</div>
+					<sp-body class="tiny muted wrap" id="progressDetail">
+					</sp-body>
+					<sp-button id="btnProgressCancel" variant="secondary" size="s" data-i18n="common.cancel">
+						取消
+					</sp-button>
+				</div>
+				<div class="inline-sheet hidden" id="overlayConfirm">
+					<sp-heading size="XS" id="confirmTitle">
+						—
+					</sp-heading>
+					<sp-body class="tiny muted wrap" id="confirmMessage">
+					</sp-body>
+					<div class="stack" id="confirmButtons">
+					</div>
+				</div>
+				<!-- 词库导出结果：普通文档流卡片，避免 UXP 不支持 fixed 浮层 -->
+				<div class="inline-sheet export-result hidden" id="exportResult">
+					<div class="row export-result-head">
+						<span class="grow export-result-title" id="exportResultTitle" data-i18n="library.exportDone">
+							提示词导出完成
+						</span>
+						<button class="picker-close" id="btnExportClose" title="关闭" data-i18n-title="common.close" aria-label="关闭">
+							×
+						</button>
+					</div>
+					<div class="export-result-path" id="exportResultPath">
+					</div>
+					<div class="tiny muted wrap" id="exportResultHint" data-i18n="library.exportHint">
+						可点击【打开文件夹】定位导出文件。
+					</div>
+					<div class="row export-result-actions">
+						<sp-button id="btnExportFolder" size="s" variant="cta" data-i18n="library.openFolder">
+							打开文件夹
+						</sp-button>
+					</div>
+				</div>
+				<!-- 生成页 / 对话页共用的下载恢复条：任务已完成时只重试下载 -->
+				<div id="downloadRecovery" class="download-recovery hidden">
+				</div>
+
+				<div id="toastHost">
+				</div>
+			</div>
+			<!-- ============================== 内容区 ============================== -->
+			<div class="body" id="body">
+				<!-- ------------------------------ 密钥 ------------------------------ -->
+				<section class="screen setup-screen" id="screenSetup">
+					<div class="card">
+						<div class="card-title">
+							<sp-heading size="s" data-i18n="setup.title">
+								连接 Krea API
+							</sp-heading>
+							<span class="badge" id="setupTokenBadge">
+								—
+							</span>
+						</div>
+						<sp-body class="tiny muted" data-i18n="setup.desc">
+							粘贴你的 Krea API Token。插件只把它发送到 api.krea.ai。为了 PS 重启后不用重复输入，Token 会保存在本机 UXP 数据目录的 token.json（仅当前系统用户可读），并尽量另存到系统钥匙串 / 加密备份。
+						</sp-body>
+						<input id="tokenInput" class="k-input token-input" type="password" placeholder="krea_..." style="margin-top:10px;width:100%;">
+						<div class="setup-actions">
+							<div class="setup-action-col">
+								<sp-button id="btnGetToken" size="s" variant="secondary" data-i18n="setup.getToken">
+									获取 Token
+								</sp-button>
+								<sp-button id="btnTestToken" size="s" variant="secondary" data-i18n="setup.test">
+									检测 API
+								</sp-button>
+							</div>
+							<div class="setup-action-col">
+								<sp-button id="btnPasteToken" size="s" variant="secondary" data-i18n="setup.paste">
+									粘贴
+								</sp-button>
+								<sp-button id="btnSaveToken" size="s" variant="cta" data-i18n="common.save">
+									保存
+								</sp-button>
+							</div>
+						</div>
+						<sp-body class="tiny muted wrap setup-notice" id="setupNotice" style="margin-top:8px;">
+							—
+						</sp-body>
+					</div>
+					<div class="card tight">
+						<div class="section-title">
+							<span data-i18n="setup.howto">
+								使用步骤
+							</span>
+							<span class="rule">
+							</span>
+						</div>
+						<sp-body class="tiny muted wrap" data-i18n="setup.howtoBody">
+							1. 在 Krea 官网创建 API Token；2. 回到 Photoshop 选区或直接输入提示词；3. 生成结果会自动置入图层。
+						</sp-body>
+					</div>
+					<img src="./bolt-uxp-header.png" alt="Krea" style="display:block;width:100%;max-width:350px;height:auto;margin:6px auto 0;">
+				</section>
+				<!-- ------------------------------ Apps ------------------------------ -->
+				<section class="screen" id="screenApps" hidden>
+					<div class="row toolbar">
+						<div class="search-field grow">
+							<input class="search-input" id="appsSearch" type="text" placeholder="搜索 App" data-i18n-placeholder="apps.searchPlaceholder" spellcheck="false">
+							<div class="search-clear hidden" id="btnAppsSearchClear" role="button" tabindex="0" title="清空搜索" data-i18n-title="apps.clearSearch">
+								×
+							</div>
+						</div>
+						<!-- 与 tab 栏一致：只有图标，不要 Spectrum 按钮外框 -->
+						<div class="icon-ghost apps-tool" id="btnAppsRefresh" role="button" tabindex="0" title="刷新" data-i18n-title="apps.refresh">
+							<img class="k-icon i-refresh" data-icon="refresh" src="./icons/ui/dark/refresh.png" width="12" height="12" alt="" />
+						</div>
+						<div class="icon-ghost apps-tool" id="btnAppsImport" role="button" tabindex="0" title="导入 App" data-i18n-title="apps.importTitle">
+							<img class="k-icon i-import" data-icon="import" src="./icons/ui/dark/import.png" width="12" height="12" alt="" />
+						</div>
+					</div>
+					<div class="chips" id="appFilters">
+						<button class="chip active" data-filter="all" data-i18n="apps.filterAll">
+							全部
+						</button>
+						<button class="chip" data-filter="workspace" data-i18n="apps.filterWorkspace">
+							工作区
+						</button>
+						<button class="chip" data-filter="fav" data-i18n="apps.filterFav">
+							收藏夹
+						</button>
+					</div>
+					<div class="row wrap-row tiny muted" id="appsStatus">
+					</div>
+					<div class="app-list" id="appsList">
+					</div>
+					<sp-button id="btnAppsMore" variant="secondary" size="s" class="hidden" data-i18n="apps.loadMore">
+						加载更多
+					</sp-button>
+					<div class="empty hidden" id="appsEmpty" data-i18n="apps.noneEmpty">
+						暂无 App。
+					</div>
+				</section>
+				<!-- ---------------------------- 导入 App ---------------------------- -->
+				<section class="screen" id="screenAppsImport" hidden>
+					<div class="section-title">
+						<span data-i18n="apps.importTitle">
+							导入 App
+						</span>
+						<span class="rule">
+						</span>
+					</div>
+					<sp-body class="tiny muted wrap" data-i18n="apps.importHint">
+						支持三种方式：① App ID 或分享链接；② App 定义 JSON；③ 从文件导入。
+					</sp-body>
+					<textarea id="appImportText" class="k-textarea" placeholder='App ID / 分享链接 / {"id":"...","name":"...","inputs":[...]}' data-i18n-placeholder="apps.importPlaceholder" style="min-height:80px;"></textarea>
+					<div class="import-actions">
+						<sp-button id="btnImportFile" size="s" variant="secondary" data-i18n="apps.importFile">
+							导入文件
+						</sp-button>
+						<sp-button id="btnImportApp" size="s" variant="cta" data-i18n="apps.importAction">
+							导入
+						</sp-button>
+					</div>
+					<sp-body class="tiny" id="appImportError" style="color:#ff8080;">
+					</sp-body>
+					<sp-body class="tiny muted wrap" id="appImportResult">
+					</sp-body>
+				</section>
+				<!-- ---------------------------- 运行 App ---------------------------- -->
+				<section class="screen" id="screenAppRun" hidden>
+					<div class="card tight">
+						<div class="card-title">
+							<sp-heading size="s" id="appRunTitle">
+								App
+							</sp-heading>
+							<span class="badge" id="appRunScope">
+							</span>
+						</div>
+						<sp-body class="tiny muted wrap" id="appRunSub">
+						</sp-body>
+					</div>
+					<div id="appRunForm" class="stack">
+					</div>
+					<sp-body class="tiny" id="appRunError" style="color:#ff8080;">
+					</sp-body>
+					<div id="appRunRecovery" class="app-run-recovery hidden">
+					</div>
+					<sp-body class="tiny muted wrap" id="appRunHint">
+					</sp-body>
+					<div class="app-run-actions">
+						<sp-button id="btnRunApp" variant="cta" data-i18n="gen.runApp">
+							运行
+						</sp-button>
+					</div>
+				</section>
+				<!-- ------------------------------ 生成 ------------------------------
+                按原版 nano.bannana 插件重建：模型 → 提示词（历史/词库/存入）→
+                参考图 → 生成范围 → 输出选项 → 生成 → 羽化边缘。
+                选区在点击「生成」时实时捕获，不在页面上重复展示输入图。 -->
+				<section class="screen generate-screen" id="screenGenerate" hidden>
+					<!-- 运行进度统一显示在标签栏下方的 #overlayProgress，三个页面共用同一套外观 -->
+					<div class="prompt-label-container" id="modelRow">
+						<div class="model-wrap">
+							<sp-field-label class="model-label" data-i18n="gen.model">
+								模型
+							</sp-field-label>
+							<!-- 模型选择：点击弹出内联选择器（原生 select / sp-picker 在 UXP 里都不可靠） -->
+							<div class="model-field" id="modelField">
+								<button class="dd-trigger model-trigger" id="modelTrigger">
+									<span id="modelTriggerLabel">
+										—
+									</span>
+									<span class="dd-caret">
+										▾
+									</span>
+								</button>
+							</div>
+						</div>
+					</div>
+					<!-- 提示词标题与工具按钮同一行：按钮紧跟在「提示词：」右侧 -->
+					<div class="prompt-heading-row">
+						<sp-field-label for="promptInput" class="generate-prompt-label" data-i18n="gen.prompt">
+							提示词:
+						</sp-field-label>
+						<div class="tool-cells">
+							<div class="icon-ghost tool-ghost" id="btnPromptHistory" role="button" tabindex="0" title="提示词历史" data-i18n-title="gen.historyTip">
+								<img class="k-icon i-history" data-icon="history" src="./icons/ui/dark/history.png" width="12" height="12" alt="" />
+							</div>
+							<div class="icon-ghost tool-ghost" id="btnPromptLibrary" role="button" tabindex="0" title="提示词库" data-i18n-title="gen.libraryTip">
+								<img class="k-icon i-folder" data-icon="folder" src="./icons/ui/dark/folder.png" width="12" height="12" alt="" />
+							</div>
+							<div class="icon-ghost tool-ghost" id="btnSavePromptToLib" role="button" tabindex="0" title="把当前提示词存入词库" data-i18n-title="gen.saveToLibTip">
+								<img class="k-icon i-plus" data-icon="plus" src="./icons/ui/dark/plus.png" width="12" height="12" alt="" />
+							</div>
+						</div>
+					</div>
+					<textarea id="promptInput" class="k-textarea" placeholder="描述你想生成/编辑的内容..." data-i18n-placeholder="gen.promptPlaceholder"></textarea>
+					<div class="section">
+						<sp-field-label for="refImageBtn" data-i18n="gen.refs">
+							参考图（可选）:
+						</sp-field-label>
+						<sp-body id="refImageWarning" class="hidden" style="color:#ff4800;font-size:12px;margin-top:-4px;margin-bottom:4px;" data-i18n="gen.refsWarning">
+							警告：参考图过多可能导致请求超时或 Photoshop 崩溃
+						</sp-body>
+						<div class="row" style="gap:8px;">
+							<sp-button id="refImageBtn" data-i18n="gen.addRef">
+								添加图片
+							</sp-button>
+							<sp-button id="clearRefImagesBtn" variant="warning" class="hidden" style="min-width:80px;" data-i18n="gen.clearRefs">
+								全部清除
+							</sp-button>
+						</div>
+						<div id="refImageContainer" class="hidden" style="margin-top:10px;">
+							<div id="refImagePreviewList" class="image-preview-list">
+							</div>
+						</div>
+					</div>
+					<div class="section">
+						<sp-field-label data-i18n="gen.sampling">
+							生成范围:
+						</sp-field-label>
+						<sp-radio-group id="layerSamplingOptions" selected="visible" class="radio-row" style="display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px 14px;">
+							<sp-radio value="visible" checked data-i18n="settings.samplingVisible">
+								采样所有可见图层
+							</sp-radio>
+							<sp-radio value="selected" data-i18n="settings.samplingSelected">
+								仅选中图层
+							</sp-radio>
+						</sp-radio-group>
+					</div>
+					<div class="section">
+						<sp-field-label data-i18n="gen.output">
+							输出选项:
+						</sp-field-label>
+						<sp-radio-group id="outputOptions" selected="newLayer" class="radio-row" style="display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px 14px;">
+							<sp-radio value="newLayer" checked data-i18n="settings.outNewLayer">
+								插入为新图层
+							</sp-radio>
+							<sp-radio value="replace" data-i18n="settings.outReplace">
+								替换原图层
+							</sp-radio>
+						</sp-radio-group>
+					</div>
+					<sp-button id="generateBtn" variant="cta" style="margin-top:16px;" title="生成一张新图片" data-i18n-title="gen.generateTip" data-i18n="gen.run">
+						生成
+					</sp-button>
+					<sp-body id="error-message" class="hidden" style="color:red;">
+					</sp-body>
+					<div class="section">
+						<sp-field-label for="featherAmountInput" data-i18n="gen.featherAmount">
+							羽化量（像素）:
+						</sp-field-label>
+						<div class="feather-row">
+							<sp-button id="featherEdgesBtn" variant="secondary" data-i18n="gen.feather">
+								羽化边缘
+							</sp-button>
+							<button class="step-btn" id="featherMinusBtn" type="button" title="减少 1 像素" data-i18n-title="gen.featherMinus" aria-label="减少 1 像素">−</button>
+							<input id="featherAmountInput" class="k-input feather-input" type="text" maxlength="3" title="0–250">
+							<button class="step-btn" id="featherPlusBtn" type="button" title="增加 1 像素" data-i18n-title="gen.featherPlus" aria-label="增加 1 像素">+</button>
+							<sp-label id="featherAmountLabel" size="s">
+								px
+							</sp-label>
+						</div>
+					</div>
+				</section>
+				<!-- ------------------------------ 对话式生成（图像 / Banana） ------------------------------ -->
+				<section class="screen chat-screen" id="screenChat" hidden>
+					<div class="chat-top-row">
+						<div class="chat-model-wrap">
+							<button class="dd-trigger model-trigger" id="chatModelTrigger">
+								<span id="chatModelLabel">—</span>
+								<span class="dd-caret">▾</span>
+							</button>
+						</div>
+					</div>
+					<div class="chat-stream" id="chatStream"></div>
+					<div class="chat-composer">
+						<div class="chat-source-row">
+							<sp-button id="chatBtnPick" size="s" quiet data-i18n="chat.upload">上传图片</sp-button>
+							<sp-button id="chatClearBtn" size="s" quiet variant="secondary" data-i18n="chat.clear">清空对话</sp-button>
+						</div>
+						<div class="thumb-strip" id="chatSourceThumb"></div>
+						<textarea id="chatPrompt" class="k-textarea" style="min-height:56px;" placeholder="描述你想生成的画面…" data-i18n-placeholder="chat.placeholder"></textarea>
+						<sp-button id="chatSendBtn" variant="cta" data-i18n="chat.send">发送</sp-button>
+					</div>
+				</section>
+				<!-- ------------------------------ 资产 ------------------------------ -->
+				<section class="screen assets-screen" id="screenAssets" hidden>
+					<div class="prompt-row">
+						<sp-heading size="s" class="grow" data-i18n="assets.jobs">
+							生成历史
+						</sp-heading>
+						<div class="icon-ghost library-tool" id="btnAssetsRefresh" role="button" tabindex="0" title="刷新" data-i18n-title="assets.refresh">
+							<img class="k-icon i-refresh" data-icon="refresh" src="./icons/ui/dark/refresh.png" width="12" height="12" alt="" />
+						</div>
+					</div>
+					<div id="assetGrid">
+					</div>
+					<div class="asset-state hidden" id="assetEmpty" data-i18n="assets.emptyJobs">
+						还没有生成记录
+					</div>
+					<div class="asset-state hidden" id="assetLoading">
+						<img class="asset-loading-gif" src="./assets/loading/loading.gif" alt="" aria-hidden="true" />
+						<span data-i18n="assets.loading">正在加载…</span>
+					</div>
+					<button class="asset-more hidden" id="btnAssetsMore" type="button" data-i18n="assets.loadMore">
+						加载更多
+					</button>
+				</section>
+				<!-- ------------------------------ 历史 ------------------------------ -->
+				<section class="screen" id="screenHistory" hidden>
+					<div class="prompt-row">
+						<sp-heading size="s" class="grow" data-i18n="history.title">
+							提示词历史
+						</sp-heading>
+						<sp-button id="btnClearHistory" size="s" variant="secondary" data-i18n="history.clear">
+							清空历史
+						</sp-button>
+					</div>
+					<sp-body class="tiny muted" data-i18n="history.hint">
+						点击一条即可填入当前输入框。
+					</sp-body>
+					<div id="historyList" class="stack">
+					</div>
+					<div class="empty hidden" id="historyEmpty" data-i18n="history.empty">
+						暂无历史记录。
+					</div>
+					<sp-button id="btnHistoryBack" variant="secondary" data-i18n="common.back">
+						返回
+					</sp-button>
+				</section>
+				<!-- ------------------------------ 词库 ------------------------------ -->
+				<section class="screen" id="screenLibrary" hidden>
+					<div class="prompt-row">
+						<sp-heading size="s" class="grow" data-i18n="library.title">
+							提示词库
+						</sp-heading>
+						<div class="icon-ghost library-tool" id="btnAddPrompt" role="button" tabindex="0" title="新增" data-i18n-title="library.new">
+							<img class="k-icon i-plus" data-icon="plus" src="./icons/ui/dark/plus.png" width="12" height="12" alt="" />
+						</div>
+						<div class="icon-ghost library-tool" id="btnImportLibrary" role="button" tabindex="0" title="导入" data-i18n-title="library.import">
+							<img class="k-icon i-import" data-icon="import" src="./icons/ui/dark/import.png" width="12" height="12" alt="" />
+						</div>
+						<div class="icon-ghost library-tool" id="btnExportLibrary" role="button" tabindex="0" title="导出" data-i18n-title="library.export">
+							<img class="k-icon i-export" data-icon="export" src="./icons/ui/dark/export.png" width="12" height="12" alt="" />
+						</div>
+						<div class="icon-ghost library-tool" id="btnRestoreLibrary" role="button" tabindex="0" title="恢复默认" data-i18n-title="library.restore">
+							<img class="k-icon i-refresh" data-icon="refresh" src="./icons/ui/dark/refresh.png" width="12" height="12" alt="" />
+						</div>
+					</div>
+					<sp-body class="tiny muted" data-i18n="library.hint">
+						点击一个提示词即可使用。
+					</sp-body>
+					<div id="libraryList">
+					</div>
+				</section>
+				<!-- ---------------------------- 编辑提示词 --------------------------- -->
+				<section class="screen" id="screenPromptEdit" hidden>
+					<div class="section-title">
+						<span id="promptEditTitle" data-i18n="library.new">新增提示词</span>
+						<span class="rule"></span>
+					</div>
+					<div class="field">
+						<div class="flabel">
+							<span data-i18n="library.name">名称</span>
+						</div>
+						<input id="promptName" class="k-input" type="text" placeholder="简短的名字" data-i18n-placeholder="library.promptName">
+					</div>
+					<div class="field">
+						<div class="flabel">
+							<span data-i18n="library.body">提示词内容</span>
+						</div>
+						<textarea id="promptBody" class="k-textarea" style="min-height:72px;"></textarea>
+					</div>
+					<div class="field library-category-field">
+						<div class="flabel">
+							<span data-i18n="library.category">分类</span>
+						</div>
+						<button class="dd-trigger category-trigger" id="categoryTrigger" aria-haspopup="listbox" aria-expanded="false">
+							<span class="grow" id="categoryTriggerLabel">—</span>
+							<span class="dd-caret">▾</span>
+						</button>
+						<div class="library-category-new">
+							<span class="tiny muted" data-i18n="library.orNewCategory">或新建</span>
+							<input id="promptNewCategory" class="k-input" type="text" placeholder="新分类名（可选）" data-i18n-placeholder="library.addCategory">
+						</div>
+					</div>
+					<sp-body class="tiny" id="promptError" style="color:#ff8080;"></sp-body>
+					<div class="prompt-edit-actions">
+						<sp-button id="btnSavePrompt" variant="cta" data-i18n="common.save">
+							保存
+						</sp-button>
+					</div>
+				</section>
+				<!-- ------------------------------ 设置 ------------------------------ -->
+				<section class="screen" id="screenSettings" hidden>
+					<div class="section-title">
+						<span data-i18n="settings.title">
+							设置
+						</span>
+						<span class="rule">
+						</span>
+					</div>
+					<div class="card tight">
+						<div class="card-title">
+							<sp-heading size="s" data-i18n="settings.account">
+								账户
+							</sp-heading>
+							<span class="badge" id="setTokenBadge">
+								—
+							</span>
+						</div>
+						<div class="row" style="margin-top:8px;">
+							<sp-button id="btnChangeToken" size="s" variant="secondary" data-i18n="settings.changeToken">更换 Token</sp-button>
+							<sp-button id="btnSignOut" size="s" variant="secondary" data-i18n="settings.signOut">退出登录</sp-button>
+						</div>
+					</div>
+					<div class="card tight">
+						<div class="card-title">
+							<sp-heading size="s" data-i18n="settings.data">数据与维护</sp-heading>
+						</div>
+						<div class="row wrap-row">
+							<sp-button id="btnOpenAssets" size="s" variant="secondary" data-i18n="settings.openAssets">打开资产历史</sp-button>
+							<sp-button id="btnClearCache" size="s" variant="secondary" data-i18n="settings.clearCache">清空 App 缓存</sp-button>
+							<sp-button id="btnReset" size="s" variant="secondary" data-i18n="settings.reset">重置全部数据</sp-button>
+						</div>
+						<sp-body class="tiny muted wrap" style="margin-top:6px;" data-i18n="settings.dataHint">
+							清空 App 缓存只删除本地的 App 列表；重置全部数据还会退出登录并清除历史、自定义词库和偏好。
+						</sp-body>
+					</div>
+				</section>
+				<!-- ------------------------------ 关于 ------------------------------ -->
+				<section class="screen" id="screenAbout" hidden>
+					<div class="section-title">
+						<span data-i18n="about.title">关于</span>
+						<span class="rule"></span>
+					</div>
+					<div class="card tight">
+						<div class="about-hero">
+							<img class="about-logo" src="./icons/dark.png" alt="Krea">
+							<div class="grow">
+								<div class="about-name">Krea for Ps</div>
+								<div class="about-version">
+									<span data-i18n="about.version">当前版本</span>
+									<span id="aboutVersion">v2.3.3</span>
+								</div>
+							</div>
+							<sp-button id="btnCheckUpdate" size="s" variant="secondary" data-i18n="about.checkUpdate">检测更新</sp-button>
+						</div>
+						<div class="about-changelog" id="aboutChangelog" data-i18n="about.why">
+							为什么做这个插件?
+							• 官方 Krea 面板把整个网页塞进 Photoshop：启动慢、依赖浏览器登录态，并要求 Photoshop 2024 以上。
+							• 纯本地界面：面板打开即用，不加载任何网页。
+							• 粘贴一次 API Token 即可使用，不依赖 OAuth 登录会话。
+							• 支持 Photoshop 2021+（22.5）。
+							• 直连 Krea 开放 API，模型注册表可一键更新。
+						</div>
+						<div class="tiny muted" id="aboutMeta" style="margin-top:6px;">—</div>
+						<div class="tiny muted" id="aboutIconPack" style="margin-top:2px;">—</div>
+					</div>
+
+					<div class="card tight">
+						<div class="section-title">
+							<span data-i18n="about.function">功能介绍</span>
+							<span class="rule"></span>
+						</div>
+						<div class="about-block">
+							<div class="about-subtitle" data-i18n="about.fn.inputTitle">选区与输入</div>
+							<div class="about-copy" data-i18n="about.fn.inputBody">
+								• 点击「生成」时实时读取当前选区，并把选区内容作为输入图。
+								• 没有选区时会提示先创建选区，与原版行为一致。
+								• 可为支持参考图的模型添加多张参考图；过大的图片会自动缩放到 1024px 后再发送。
+								• 图生图固定使用 0.5 的编辑强度，兼顾保留原图与重绘效果。
+							</div>
+						</div>
+						<div class="about-block">
+							<div class="about-subtitle" data-i18n="about.fn.modelsTitle">模型</div>
+							<div class="about-copy" data-i18n="about.fn.modelsBody">
+								• 内置 44 个模型，按厂商分组：Krea 2 Medium / Large / Turbo、Krea 3；Google Nano Banana 系列；OpenAI GPT-Image 系列；Flux 1.1 / Kontext；Seedream / Seededit；Ideogram、Topaz、Magnific 等。
+								• 覆盖文生图、图生图、局部重绘、放大 / 增强等场景。
+								• 「对话」页聚焦 Krea 自研与 Google Nano Banana 模型，自动按当前选区比例生成，适合连续出图和改图。
+								• 模型参数由 Krea 智能填充，无需逐个设置 seed、步数等高级参数。
+							</div>
+						</div>
+						<div class="about-block">
+							<div class="about-subtitle" data-i18n="about.fn.outputTitle">输出与落位</div>
+							<div class="about-copy" data-i18n="about.fn.outputBody">
+								• 生成页两种输出方式：插入为新图层 / 替换原图层；对话与 App 结果还可置入新画布。
+								• 结果自动缩放到选区大小并精确落位；替换模式只覆盖选区，选区外像素保留。
+								• 生成后可对选区边缘执行羽化，羽化量可调。
+							</div>
+						</div>
+						<div class="about-block">
+							<div class="about-subtitle" data-i18n="about.fn.promptTitle">提示词与参考图</div>
+							<div class="about-copy" data-i18n="about.fn.promptBody">
+								• 提示词历史自动记录，方便回看和复用。
+								• 提示词库支持分类、导入 / 导出与恢复默认。
+								• 参考图支持多选，并按模型定义自动映射到对应字段。
+							</div>
+						</div>
+						<div class="about-block">
+							<div class="about-subtitle" data-i18n="about.fn.appsTitle">Apps 工作流</div>
+							<div class="about-copy" data-i18n="about.fn.appsBody">
+								• 直接运行 Krea Node Apps：浏览工作区 / 公开 App，搜索、收藏、置顶。
+								• 按 App 的输入 Schema 自动生成表单，支持文本、数字、滑杆、下拉、图片与多图。
+								• 可通过 App ID、分享链接、JSON 或文件导入 App；视频结果自动在浏览器打开。
+							</div>
+						</div>
+						<div class="about-block">
+							<div class="about-subtitle" data-i18n="about.fn.securityTitle">安全与设置</div>
+							<div class="about-copy" data-i18n="about.fn.securityBody">
+								• API Token 仅发送到 api.krea.ai。为了 PS 重启后不用重复输入，Token 会保存在本机 UXP 数据目录的 token.json（仅当前系统用户可读），并尽量另存到系统钥匙串 / 加密备份。
+								• 支持检测 Token、更换 Token、打开资产历史、清空 App 缓存和重置数据。
+								• 界面支持中文 / English 一键切换，设置会自动保存。
+							</div>
+						</div>
+					</div>
+
+					<div class="card tight">
+						<div class="section-title">
+							<span data-i18n="about.quickStart">快速开始</span>
+							<span class="rule"></span>
+						</div>
+						<div class="about-copy" data-i18n="about.quickStartIntro">首次使用按下面 5 步完成；之后打开面板即可直接生成。</div>
+						<div class="about-steps">
+							<div class="about-step">
+								<span class="about-step-no">1</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step1Title">获取 API Token</div>
+									<div class="about-step-desc" data-i18n="about.step1Body">在 Krea 官网的 API Tokens 页面创建 Token 并复制；也可以直接在「连接 Krea API」页点击「获取 Token」。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">2</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step2Title">连接面板</div>
+									<div class="about-step-desc" data-i18n="about.step2Body">在 Photoshop 打开 Krea for Ps，粘贴 Token 后保存；状态显示「已连接」即完成。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">3</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step3Title">准备输入</div>
+									<div class="about-step-desc" data-i18n="about.step3Body">画好选区后直接点「生成」；没有选区时会提示先创建选区。需要参考图时可继续添加。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">4</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step4Title">选择模型与提示词</div>
+									<div class="about-step-desc" data-i18n="about.step4Body">在模型选择器里按厂商挑选模型；输入提示词。图生图固定使用 0.5 的编辑强度，无需额外设置。</div>
+								</div>
+							</div>
+							<div class="about-step">
+								<span class="about-step-no">5</span>
+								<div class="about-step-body">
+									<div class="about-step-title" data-i18n="about.step5Title">生成与微调</div>
+									<div class="about-step-desc" data-i18n="about.step5Body">选择输出方式（插入为新图层 / 替换原图层），点击「生成」。结果会自动落位；可用「羽化边缘」、提示词历史与词库继续调整。对话和 App 结果还可置入新画布。</div>
+								</div>
+							</div>
+						</div>
+						<div class="about-tip" data-i18n="about.quickStartTip">小贴士：首次使用前请确认 Token 有效；生成失败时先检查网络与 Token。大图或高分辨率模型可能需要更长时间，可在进度浮层中取消。</div>
+					</div>
+
+					<div class="card tight">
+						<div class="section-title">
+							<span data-i18n="about.contact">联系</span>
+							<span class="rule"></span>
+						</div>
+						<sp-body class="tiny muted wrap" data-i18n="about.contactHint">
+							遇到问题、想提需求，或想聊聊工作流，欢迎发邮件。
+						</sp-body>
+						<div class="about-email">
+							Work of HBA Xiamen
+						</div>
+						<sp-button id="btnAboutContact" size="s" variant="secondary" data-i18n="about.email">
+							联系我们
+						</sp-button>
+					</div>
+				</section>
+			</div>
+				<!-- ============================== 底部操作栏 =========================== -->
+			<footer class="footer" id="footerBar">
+				<div class="footer-about" id="footerAbout">
+				</div>
+				<div class="hint grow" id="footerHint">
+				</div>
+				<div class="row" id="footerActions">
+				</div>
+			</footer>
+		</div>
+		<!-- ============================== Toast ================================= -->
+		<!-- toast 容器在 #sheetHost 里只保留一个（下方曾重复声明同名容器，会取到错的节点） -->
+		<script src="assets/models.js"></script>
+		<script src="assets/i18n.js"></script>
+		<script src="assets/store.js"></script>
+		<script src="assets/api.js"></script>
+		<script src="assets/ps.js"></script>
+		<script src="assets/main.js"></script>
+	</body>
+</html>

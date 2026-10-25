@@ -1,0 +1,79 @@
+{
+	"id": "krea.ps.rebuild",
+	"name": "Krea for Ps",
+	"version": "2.3.3",
+	"main": "index.html",
+	"manifestVersion": 5,
+	"host": {
+		"app": "PS",
+		"minVersion": "22.5.0"
+	},
+	"entrypoints": [
+		{
+			"type": "panel",
+			"id": "krea.ps.rebuild.panel",
+			"label": {
+				"default": "Krea for Ps"
+			},
+			"minimumSize": {
+				"width": 260,
+				"height": 300
+			},
+			"maximumSize": {
+				"width": 2400,
+				"height": 2400
+			},
+			"preferredDockedSize": {
+				"width": 340,
+				"height": 720
+			},
+			"preferredFloatingSize": {
+				"width": 460,
+				"height": 760
+			},
+			"icons": [
+				{
+					"width": 23,
+					"height": 23,
+					"path": "icons/dark.png",
+					"scale": [1, 2],
+					"theme": ["darkest", "dark", "medium"]
+				},
+				{
+					"width": 23,
+					"height": 23,
+					"path": "icons/light.png",
+					"scale": [1, 2],
+					"theme": ["lightest", "light"]
+				}
+			]
+		}
+	],
+	"requiredPermissions": {
+		"localFileSystem": "fullAccess",
+		"launchProcess": {
+			"schemes": ["https", "mailto"]
+		},
+		"clipboard": "readAndWrite",
+		"network": {
+			"domains": [
+				"https://api.krea.ai",
+				"https://krea.ai",
+				"https://*.krea.ai",
+				"https://app-uploads.krea.ai",
+				"https://gen.krea.ai",
+				"https://raw.githubusercontent.com"
+			]
+		}
+	},
+	"icons": [
+		{
+			"width": 48,
+			"height": 48,
+			"path": "icons/dark.png",
+			"scale": [1, 2],
+			"theme": ["darkest", "dark", "medium", "lightest", "light", "all"],
+			"species": ["pluginList"]
+		}
+	]
+}
