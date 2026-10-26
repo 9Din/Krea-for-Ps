@@ -1889,44 +1889,33 @@ sp-textarea { min-height: 52px; }
   flex-direction: column;
   gap: 6px;
 }
+/* 对话页顶部固定两行：第一行模式单选，第二行模型下拉框。 */
 .chat-top-row {
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }
-.chat-top-row .model-trigger { flex: 1 1 auto; min-width: 0; }
-/* 图像生成 / AI 对话 模式切换。用普通 button，避免旧版 UXP 对 sp-button 的尺寸处理差异。 */
-.chat-mode-switch {
-  flex: 0 0 auto;
+.chat-top-row .model-trigger { flex: 0 0 auto; width: 100%; min-width: 0; }
+/* 图像生成 / AI 对话：沿用生成页的单选按钮样式，两项保持同一行。 */
+.chat-mode-radio {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--k-border);
-  border-radius: 5px;
-  background: var(--k-bg-2);
+  gap: 2px 14px;
+  width: 100%;
+  margin: 0;
 }
-.chat-mode-btn {
-  height: 18px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--k-text-dim);
-  font-family: inherit;
-  font-size: 10px;
-  line-height: 18px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.chat-mode-btn.active {
-  background: var(--k-blue);
-  color: #fff;
+.chat-mode-radio sp-radio,
+.chat-mode-radio .k-check {
+  flex: 0 0 auto;
+  margin: 0;
 }
 /* 对话页三个控件都必须按父容器的 content-box 精确收边：
    UXP 对 <button> / <sp-button> 宿主的 box-sizing 处理不稳定，
@@ -2103,7 +2092,7 @@ sp-textarea { min-height: 52px; }
 /* 模型触发器外面再包一层纵向容器：
    openPicker 会把内联列表插到 anchor 后面，没有这层包裹时会插进横向 flex 行里。 */
 .chat-model-wrap {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   width: 100%;
   max-width: 100%;
   min-width: 0;

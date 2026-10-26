@@ -389,10 +389,10 @@
 				<!-- ------------------------------ 对话（图像生成 / AI 对话） ------------------------------ -->
 				<section class="screen chat-screen" id="screenChat" hidden>
 					<div class="chat-top-row">
-						<div class="chat-mode-switch" role="tablist">
-							<button class="chat-mode-btn active" id="chatModeImage" type="button" role="tab" aria-selected="true" data-i18n="chat.modeImage">图像</button>
-							<button class="chat-mode-btn" id="chatModeAgent" type="button" role="tab" aria-selected="false" data-i18n="chat.modeAgent">AI 对话</button>
-						</div>
+						<sp-radio-group id="chatModeOptions" selected="image" class="chat-mode-radio">
+							<sp-radio value="image" checked data-i18n="chat.modeImage">图像</sp-radio>
+							<sp-radio value="agent" data-i18n="chat.modeAgent">AI 对话</sp-radio>
+						</sp-radio-group>
 						<div class="chat-model-wrap">
 							<button class="dd-trigger model-trigger" id="chatModelTrigger">
 								<span id="chatModelLabel">—</span>

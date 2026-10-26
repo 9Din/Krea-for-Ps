@@ -2802,16 +2802,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
   /* ============================================================ 对话（图像 / Agent） */
   function syncChatModeUi() {
     var mode = st.chatMode === "agent" ? "agent" : "image";
-    var imageBtn = $("chatModeImage");
-    var agentBtn = $("chatModeAgent");
-    if (imageBtn) {
-      imageBtn.classList.toggle("active", mode === "image");
-      imageBtn.setAttribute("aria-selected", mode === "image" ? "true" : "false");
-    }
-    if (agentBtn) {
-      agentBtn.classList.toggle("active", mode === "agent");
-      agentBtn.setAttribute("aria-selected", mode === "agent" ? "true" : "false");
-    }
+    setRadio($("chatModeOptions"), mode);
     var input = $("chatPrompt");
     if (input) input.setAttribute("placeholder", T(mode === "agent" ? "chat.agentPlaceholder" : "chat.placeholder"));
     updateChatModelLabel();
@@ -3120,11 +3111,22 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
 
   function setChatBusy(on) {
     st.busy = !!on;
-    var ids = ["chatSendBtn", "chatModeImage", "chatModeAgent", "chatBtnPick", "chatBtnUseSelection", "chatClearBtn"];
+    var ids = ["chatSendBtn", "chatBtnPick", "chatBtnUseSelection", "chatClearBtn"];
     ids.forEach(function (id) {
       var el = $(id);
       if (el) el.disabled = !!on;
     });
+    // 单选组没有统一的 disabled 行为：组元素与降级后的原生 radio 都设一遍。
+    var modeGroup = $("chatModeOptions");
+    if (modeGroup) {
+      modeGroup.disabled = !!on;
+      try {
+        if (on) modeGroup.setAttribute("disabled", "");
+        else modeGroup.removeAttribute("disabled");
+      } catch (e) { /* ignore */ }
+      var modeRadios = modeGroup.querySelectorAll("sp-radio, input[type=radio]") || [];
+      for (var i = 0; i < modeRadios.length; i++) modeRadios[i].disabled = !!on;
+    }
   }
 
   /**
@@ -5761,9 +5763,11 @@ $("appFilters").addEventListener("click", function (ev) {
     if ($("btnImportApp")) $("btnImportApp").addEventListener("click", onImportText);
     if ($("btnRunApp")) $("btnRunApp").addEventListener("click", onRunApp);
 
-    // 对话页：图像生成 / AI 对话双模式
-    if ($("chatModeImage")) $("chatModeImage").addEventListener("click", function () { setChatMode("image", true); });
-    if ($("chatModeAgent")) $("chatModeAgent").addEventListener("click", function () { setChatMode("agent", true); });
+    // 对话页：图像生成 / AI 对话双模式（单选组，change 由组元素统一接收）
+    if ($("chatModeOptions")) $("chatModeOptions").addEventListener("change", function () {
+      var next = radioValue($("chatModeOptions"));
+      setChatMode(next === "agent" ? "agent" : "image", true);
+    });
     if ($("chatBtnUseSelection")) $("chatBtnUseSelection").addEventListener("click", async function () {
       try {
         await captureSelectionForGenerate();
