@@ -10,7 +10,7 @@
 	<body>
 		<div id="app">
 			<!-- 版本戳：由构建脚本写入，main.js 启动时会和自身 VERSION 比对 -->
-			<div id="buildStamp" hidden data-version="2.3.7">
+			<div id="buildStamp" hidden data-version="2.3.8">
 			</div>
 			<!-- ============================ 顶部品牌栏 ============================ -->
 			<header class="header">
@@ -386,9 +386,13 @@
 						</div>
 					</div>
 				</section>
-				<!-- ------------------------------ 对话式生成（图像 / Banana） ------------------------------ -->
+				<!-- ------------------------------ 对话（图像生成 / AI 对话） ------------------------------ -->
 				<section class="screen chat-screen" id="screenChat" hidden>
 					<div class="chat-top-row">
+						<div class="chat-mode-switch" role="tablist">
+							<button class="chat-mode-btn active" id="chatModeImage" type="button" role="tab" aria-selected="true" data-i18n="chat.modeImage">图像</button>
+							<button class="chat-mode-btn" id="chatModeAgent" type="button" role="tab" aria-selected="false" data-i18n="chat.modeAgent">AI 对话</button>
+						</div>
 						<div class="chat-model-wrap">
 							<button class="dd-trigger model-trigger" id="chatModelTrigger">
 								<span id="chatModelLabel">—</span>
@@ -399,6 +403,7 @@
 					<div class="chat-stream" id="chatStream"></div>
 					<div class="chat-composer">
 						<div class="chat-source-row">
+							<sp-button id="chatBtnUseSelection" size="s" quiet data-i18n="chat.useSelection">当前选区</sp-button>
 							<sp-button id="chatBtnPick" size="s" quiet data-i18n="chat.upload">上传图片</sp-button>
 							<sp-button id="chatClearBtn" size="s" quiet variant="secondary" data-i18n="chat.clear">清空对话</sp-button>
 						</div>
@@ -573,7 +578,7 @@
 								<div class="about-name">Krea for Ps</div>
 								<div class="about-version">
 									<span data-i18n="about.version">当前版本</span>
-									<span id="aboutVersion">v2.3.7</span>
+									<span id="aboutVersion">v2.3.8</span>
 								</div>
 							</div>
 							<sp-button id="btnAboutContact" class="about-contact-btn" size="s" variant="secondary" data-i18n="about.contact">联系我们</sp-button>

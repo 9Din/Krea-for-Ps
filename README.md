@@ -20,15 +20,21 @@ Requires Photoshop 22.5+ (UXP).
   image into the current document. Image fields can use the current selection.
 - **Live app catalog** — the featured list is synced from
   [`featured-apps.json`](featured-apps.json) on startup (cached for 6 hours) and
-  whenever you press refresh. New or removed official apps appear without
-  updating the plugin.
+  whenever you press refresh. New or removed public apps appear without updating
+  the plugin. Private/user apps are excluded from this catalog and stay in the
+  Workspace tab.
 - **Latest app definitions** — opening an app first asks the API for the app by
   ID, so the form and execution use the current `node_app_version_id`; the
   version stored in the catalog is only a compatibility fallback.
 - **Generate** — 44 image models grouped by task, prompt presets, reference
   images, selection-aware layer sampling, feathering, and new-layer/replace-layer
   output.
-- **Chat** — iterative image editing and generation with a compact chat stream.
+- **Chat** — two modes in one compact stream: iterative image generation, and
+  **AI chat** with Krea Agent. In AI chat you can attach the current selection or
+  an uploaded image, ask the Agent to analyse it, write prompts, or continue a
+  multi-turn conversation. Replies can be copied or sent straight to the Generate
+  prompt. Agent defaults to Auto; a documented LLM can be pinned from the model
+  picker.
 - **Assets, history and prompt library** — thumbnails, retry/cancel, prompt
   history, a searchable personal prompt library, favourites, and app search.
 - **Video/audio filtering** — apps that only produce video/audio (or only accept
@@ -53,7 +59,7 @@ downloaded `.ccx`. There is no in-plugin update or self-uninstall API in UXP.
 ```json
 {
   "schema": 1,
-  "updated_at": "2026-10-26T13:13:20.948Z",
+  "updated_at": "2026-10-26T14:01:12.359Z",
   "source": "https://www.krea.ai/nodes?tab=apps",
   "apps": [
     {
@@ -85,6 +91,8 @@ misses.
 ## Privacy and network access
 
 - The Krea API token is sent only to `api.krea.ai`.
+- AI chat uses Krea Agent. When you attach a selection or image, the plugin first
+  uploads it to Krea Assets (`POST /assets`) so the Agent can read it.
 - Update and app-catalog requests go to `raw.githubusercontent.com` and never
   include the token.
 - The token is stored locally in the UXP data folder (`token.json` plus the
@@ -100,13 +108,13 @@ to Teams) must be available.
 ## Versioning
 
 Patch numbers stay single-digit for easy verbal reference:
-`2.3.5 → 2.3.6 → 2.3.7 → … → 2.3.9 → 2.4.0`. Do not use `2.3.10`.
+`2.3.6 → 2.3.7 → 2.3.8 → 2.3.9 → 2.4.0`. Do not use `2.3.10`.
 
 Release naming:
 
-- Tag: `v2.3.7`
-- Title: `Krea for Ps 2.3.7`
-- Asset: `Krea-for-Ps-2.3.7.ccx`
+- Tag: `v2.3.8`
+- Title: `Krea for Ps 2.3.8`
+- Asset: `Krea-for-Ps-2.3.8.ccx`
 
 ## Source layout
 

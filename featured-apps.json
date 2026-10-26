@@ -1,30 +1,8 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-26T13:13:20.948Z",
+  "updated_at": "2026-10-26T14:01:12.359Z",
   "source": "https://www.krea.ai/nodes?tab=apps",
   "apps": [
-    {
-      "id": "5e8b173e-e0ad-4823-9ae1-b888f03bce26",
-      "name": "image prompting",
-      "slug": "image-prompting",
-      "scope": "user",
-      "username": "terrificadvancedporpoise",
-      "description": "",
-      "node_app_version_id": "849893a2-7835-4405-89f5-13c624460f98",
-      "version": 1,
-      "example_outputs": []
-    },
-    {
-      "id": "629d7742-70e8-4ed3-8d48-358f70a910e6",
-      "name": "提取材质模板",
-      "slug": "untitled",
-      "scope": "user",
-      "username": "terrificadvancedporpoise",
-      "description": "照片提取实物纹理，输出**无缝平铺 Seamless Texture**，用于 3D 材质、贴图、设计背景。",
-      "node_app_version_id": "ba28bd3b-c3b8-4759-b6b5-49eae11ba63a",
-      "version": 1,
-      "example_outputs": []
-    },
     {
       "id": "0ce4f2cf-624f-4c9b-80f0-9365b1623525",
       "name": "image prompting",

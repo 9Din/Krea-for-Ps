@@ -9,6 +9,9 @@
  *   POST /node-apps/{id}/execute          运行工作区 / 公开 App（自定义工作流）
  *   GET  /node-apps                       列出可运行的 App（含 input_openapi_schema）
  *   GET  /node-apps/{id}                  取单个 App 定义（含 schema）
+ *   POST /assets                          上传图片（Agent 附件必须先变成可访问 URL）
+ *   POST /agent/send-message              新建 / 继续 Agent 会话（可指定 LLM）
+ *   POST /agent/wait-for-session          等待 Agent 本轮完成
  *   GET  /jobs/{id}                       任务状态与结果
  *   GET  /jobs                            生成历史（游标分页、状态过滤）
  *   DELETE /jobs/{id}                     删除生成历史
@@ -124,7 +127,15 @@ window.KREA_API = (function () {
     }
     if (!res.ok) {
       var code = res.status === 401 ? "unauthorized" : res.status === 429 ? "rate_limited" : "http_" + res.status;
-      throw ApiError("Krea API " + res.status + "：" + bodyToMessage(res.status, text), res.status, code);
+      var apiErr = ApiError("Krea API " + res.status + "：" + bodyToMessage(res.status, text), res.status, code);
+      // Agent 在 403 时会返回 allowedModels，用它把“套餐不包含该 LLM”变成可操作提示。
+      try {
+        var detail = JSON.parse(text);
+        if (detail && Array.isArray(detail.allowedModels)) apiErr.allowedModels = detail.allowedModels.slice();
+        if (detail && typeof detail.code === "string") apiErr.apiCode = detail.code;
+        if (detail && typeof detail.error === "string") apiErr.apiMessage = detail.error;
+      } catch (e2) { /* 非 JSON 错误页 */ }
+      throw apiErr;
     }
     if (!text) return null;
     try { return JSON.parse(text); } catch (e) { return text; }
@@ -377,6 +388,112 @@ window.KREA_API = (function () {
     return await request("/node-apps/" + encodeURIComponent(id), {}, 30000);
   }
 
+  /* -------------------------------------------------------------- 资产上传
+   * Agent 的 attachments 只接受可访问的 HTTP(S) URL 或 Krea 文件 URI，
+   * 不能直接放本地 base64。这里用原生 multipart 请求把 PS 选区/上传图
+   * 传到 /assets，拿回 image_url 后再作为附件发给 Agent。
+   *
+   * 不依赖 FormData / Blob：旧版 UXP 对这两个构造器的支持并不完整。
+   */
+  function base64ToBytes(base64) {
+    var clean = String(base64 || "").replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
+    if (!clean) return new Uint8Array(0);
+    var bin = atob(clean);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function asciiBytes(text) {
+    var s = String(text || "");
+    var out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
+    return out;
+  }
+
+  function extensionForMime(mime) {
+    var m = String(mime || "").toLowerCase();
+    if (m.indexOf("jpeg") >= 0 || m.indexOf("jpg") >= 0) return "jpg";
+    if (m.indexOf("webp") >= 0) return "webp";
+    if (m.indexOf("gif") >= 0) return "gif";
+    return "png";
+  }
+
+  function safeFileName(name, mime) {
+    var ext = extensionForMime(mime);
+    var raw = String(name || "image").replace(/\.[a-z0-9]+$/i, "").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+    if (!raw) raw = "image";
+    return raw.slice(0, 80) + "." + ext;
+  }
+
+  async function uploadAsset(base64, mime, filename) {
+    if (!token) throw ApiError("尚未配置 Krea API Token", 0, "no_token");
+    var bytes = base64ToBytes(base64);
+    if (!bytes.length) throw ApiError("图片为空，无法上传", 0, "empty_upload");
+    var contentType = String(mime || "image/jpeg").toLowerCase();
+    if (!/^image\//.test(contentType)) contentType = "image/jpeg";
+    var boundary = "----KreaForPs" + Date.now().toString(16) + Math.random().toString(16).slice(2);
+    var head = "--" + boundary + "\r\n" +
+      "Content-Disposition: form-data; name=\"file\"; filename=\"" + safeFileName(filename, contentType) + "\"\r\n" +
+      "Content-Type: " + contentType + "\r\n\r\n";
+    var tail = "\r\n--" + boundary + "--\r\n";
+    var headBytes = asciiBytes(head);
+    var tailBytes = asciiBytes(tail);
+    var body = new Uint8Array(headBytes.length + bytes.length + tailBytes.length);
+    body.set(headBytes, 0);
+    body.set(bytes, headBytes.length);
+    body.set(tailBytes, headBytes.length + bytes.length);
+
+    var ac = new AbortController();
+    var timedOut = false;
+    var timer = setTimeout(function () { timedOut = true; ac.abort(); }, 120000);
+    var res;
+    try {
+      res = await fetch(BASE + "/assets", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Type": "multipart/form-data; boundary=" + boundary
+        },
+        body: body.buffer,
+        signal: ac.signal
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      if (timedOut || (e && (e.name === "AbortError" || /abort/i.test(String(e.message))))) {
+        throw ApiError("图片上传超时（120s）", 0, "timeout");
+      }
+      throw ApiError("图片上传失败：" + (e && e.message ? e.message : String(e)), 0, "network");
+    }
+
+    var text = "";
+    try { text = await res.text(); } finally { clearTimeout(timer); }
+    if (!res.ok) {
+      var upErr = ApiError("图片上传失败（" + res.status + "）：" + bodyToMessage(res.status, text), res.status, "upload");
+      throw upErr;
+    }
+    var out = null;
+    try { out = text ? JSON.parse(text) : null; } catch (e) { out = null; }
+    if (!out || !out.image_url) throw ApiError("图片上传成功但未返回可用链接", 0, "upload_no_url");
+    return out;
+  }
+
+  /* -------------------------------------------------------------- Agent
+   * Agent API 是会话 + 轮次模型：send-message 立即返回 sessionId/runId，
+   * 再用 wait-for-session 等到本轮结束，从 text / media 读取结果。
+   */
+  async function sendAgentMessage(body) {
+    return await request("/agent/send-message", { method: "POST", body: body || {} }, 180000);
+  }
+
+  async function waitForAgentSession(sessionId, runId, timeoutSeconds) {
+    var seconds = Math.max(1, Math.min(300, Number(timeoutSeconds) || 60));
+    var body = { sessionId: sessionId, timeoutSeconds: seconds };
+    if (runId) body.runId = runId;
+    // HTTP 超时必须比服务端等待时间长，否则会先被本地 AbortController 中断。
+    return await request("/agent/wait-for-session", { method: "POST", body: body }, (seconds + 45) * 1000);
+  }
+
   return {
     BASE: BASE,
     setToken: setToken,
@@ -396,6 +513,9 @@ window.KREA_API = (function () {
     downloadBase64: downloadBase64,
     listApps: listApps,
     getApp: getApp,
+    uploadAsset: uploadAsset,
+    sendAgentMessage: sendAgentMessage,
+    waitForAgentSession: waitForAgentSession,
     ApiError: ApiError
   };
 })();

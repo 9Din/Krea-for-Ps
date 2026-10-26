@@ -697,7 +697,9 @@ window.KREA_STORE = (function () {
     outputMode: "newLayer",
     sampling: "visible",
     feather: 0,
-    appFilter: "all"
+    appFilter: "all",
+    chatMode: "image",
+    agentModel: ""
   };
 
   /* 偏好写入队列：setPrefs / resetPrefs / getPrefs 共用，避免读改写互相覆盖。 */

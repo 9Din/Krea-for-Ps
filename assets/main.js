@@ -28,7 +28,7 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.3.7";
+  var VERSION = "2.3.8";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
   /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
   var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
@@ -102,6 +102,53 @@
   /* 兼容老用户配置里残留的 "image" / "banana" tab */
   var LEGACY_TAB_ALIAS = { image: "chat", banana: "chat" };
 
+  /* Agent API 的 LLM 列表（2026-10 官方文档枚举）。
+   * 这里只用于下拉框；服务端才是最终权限来源。若套餐不包含所选模型，
+   * 403 会返回 allowedModels，主流程会提示并切回「自动选择」。 */
+  var AGENT_MODEL_GROUPS = [
+    { label: "OpenAI", items: [
+      { id: "openai/gpt-6-astra", label: "GPT-6 Astra" },
+      { id: "openai/gpt-6.1-sol", label: "GPT-6.1 Sol" },
+      { id: "openai/gpt-6-sol", label: "GPT-6 Sol" },
+      { id: "openai/gpt-6-luna", label: "GPT-6 Luna" },
+      { id: "openai/gpt-5.6-sol", label: "GPT-5.6 Sol" },
+      { id: "openai/gpt-5.6-terra", label: "GPT-5.6 Terra" },
+      { id: "openai/gpt-5.6-luna", label: "GPT-5.6 Luna" },
+      { id: "openai/gpt-5.5", label: "GPT-5.5" }
+    ] },
+    { label: "Anthropic", items: [
+      { id: "anthropic/claude-opus-5.5", label: "Claude Opus 5.5" },
+      { id: "anthropic/claude-opus-5", label: "Claude Opus 5" },
+      { id: "anthropic/claude-fable-5.1", label: "Claude Fable 5.1" },
+      { id: "anthropic/claude-fable-5", label: "Claude Fable 5" },
+      { id: "anthropic/claude-opus-4.8", label: "Claude Opus 4.8" },
+      { id: "anthropic/claude-sonnet-5", label: "Claude Sonnet 5" },
+      { id: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
+      { id: "anthropic/claude-opus-4.5", label: "Claude Opus 4.5" }
+    ] },
+    { label: "Google", items: [
+      { id: "google/gemini-4-argon", label: "Gemini 4 Argon" },
+      { id: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+      { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash" },
+      { id: "google/gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite" },
+      { id: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro Preview" },
+      { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
+      { id: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" }
+    ] },
+    { label: "xAI / Others", items: [
+      { id: "xai/grok-4.5", label: "Grok 4.5" },
+      { id: "zai/glm-5.2", label: "GLM 5.2" },
+      { id: "moonshotai/kimi-k3", label: "Kimi K3" }
+    ] }
+  ];
+  var AGENT_MODEL_LABELS = {};
+  AGENT_MODEL_GROUPS.forEach(function (g) {
+    g.items.forEach(function (it) { AGENT_MODEL_LABELS[it.id] = it.label; });
+  });
+  var AGENT_SESSION_NAME = "Krea for Ps";
+  var AGENT_WAIT_SECONDS = 60;
+  var AGENT_MAX_WAIT_MS = 10 * 60 * 1000;
+
   /* ============================== st ============================== */
   var st = {
     prefs: null,
@@ -125,6 +172,14 @@
     source: null,        // {base64,name}|{url,name,remote:true}
     refs: [],
     chatHistory: [],     // [{prompt, base64, mime, model, ts}] — 对话式生成的消息流
+    /* AI 对话（Agent API）：和图像消息分开存，切换模式不会丢历史。
+       sessionId 只在本次面板会话内保留；清空对话会同时结束这段上下文。 */
+    chatMode: "image",   // image | agent
+    agentModel: "",      // "" = Auto
+    agentAllowed: null,  // 403 allowedModels 返回的白名单
+    agentHistory: [],    // [{role:"user"|"assistant"|"error", text, model, ts, pending}]
+    agentSessionId: null,
+    agentRunId: null,
     /* 资产页：只展示 GET /jobs 的生成历史。
        缩略图先 fetch 成 data URL 再交给 <img>；thumbCache 只存在内存里，
        不发额外 API 请求，也不会写入磁盘。刷新面板 / 重启 PS / 重置全部数据
@@ -1813,9 +1868,59 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       renderModelForm();
       setGenerateButtonMode(false);
       updateHeader();
-      var cl = $("chatModelLabel");
-      if (cl) cl.textContent = modelLabel(st.model);
+      updateChatModelLabel();
     });
+  }
+
+  function llmLabel(id) {
+    if (!id) return T("chat.agentAuto");
+    return AGENT_MODEL_LABELS[id] || id;
+  }
+
+  function updateChatModelLabel() {
+    var label = $("chatModelLabel");
+    if (label) label.textContent = st.chatMode === "agent" ? llmLabel(st.agentModel) : modelLabel(st.model);
+    var btn = $("chatModelTrigger");
+    if (btn) {
+      btn.title = st.chatMode === "agent" ? T("chat.agentModel") : T("gen.model");
+    }
+  }
+
+  function openAgentModelPicker(anchor) {
+    var groups = [{
+      label: T("chat.agentModel"),
+      items: [{ value: "", label: T("chat.agentAuto") }]
+    }];
+    var allowed = null;
+    if (Array.isArray(st.agentAllowed) && st.agentAllowed.length) {
+      allowed = {};
+      st.agentAllowed.forEach(function (id) { allowed[id] = 1; });
+    }
+    AGENT_MODEL_GROUPS.forEach(function (g) {
+      var items = g.items.filter(function (it) { return !allowed || allowed[it.id]; });
+      if (!items.length) return;
+      groups.push({
+        label: "— " + g.label + " —",
+        items: items.map(function (it) { return { value: it.id, label: it.label }; })
+      });
+    });
+    return openPicker({
+      title: T("chat.agentModel"),
+      groups: groups,
+      selected: st.agentModel,
+      anchor: anchor
+    }).then(function (v) {
+      if (v === null) return;
+      st.agentModel = v || "";
+      st.agentAllowed = null;
+      S.setPrefs({ agentModel: st.agentModel });
+      updateChatModelLabel();
+    });
+  }
+
+  function openChatModelPicker(anchor) {
+    if (st.chatMode === "agent") return openAgentModelPicker(anchor);
+    return openModelPickerFor(anchor);
   }
 
   function buildModelPicker() {
@@ -1829,8 +1934,9 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     var cbtn = $("chatModelTrigger");
     if (cbtn && !cbtn.__kreaBound) {
       cbtn.__kreaBound = true;
-      cbtn.addEventListener("click", function () { openModelPickerFor(cbtn); });
+      cbtn.addEventListener("click", function () { openChatModelPicker(cbtn); });
     }
+    updateChatModelLabel();
   }
 
   /**
@@ -2693,13 +2799,39 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     }
   }
 
-  /* ============================================================ 对话式生成（图像 / Banana） */
+  /* ============================================================ 对话（图像 / Agent） */
+  function syncChatModeUi() {
+    var mode = st.chatMode === "agent" ? "agent" : "image";
+    var imageBtn = $("chatModeImage");
+    var agentBtn = $("chatModeAgent");
+    if (imageBtn) {
+      imageBtn.classList.toggle("active", mode === "image");
+      imageBtn.setAttribute("aria-selected", mode === "image" ? "true" : "false");
+    }
+    if (agentBtn) {
+      agentBtn.classList.toggle("active", mode === "agent");
+      agentBtn.setAttribute("aria-selected", mode === "agent" ? "true" : "false");
+    }
+    var input = $("chatPrompt");
+    if (input) input.setAttribute("placeholder", T(mode === "agent" ? "chat.agentPlaceholder" : "chat.placeholder"));
+    updateChatModelLabel();
+  }
+
+  function setChatMode(mode, persist) {
+    if (st.busy) return;
+    st.chatMode = mode === "agent" ? "agent" : "image";
+    if (persist) S.setPrefs({ chatMode: st.chatMode });
+    closePicker();
+    syncChatModeUi();
+    renderChatStream();
+    fitChatStream();
+  }
+
   function onEnterChat() {
-    var lbl = $("chatModelLabel");
-    if (lbl) lbl.textContent = modelLabel(st.model);
     // 进入页面不再自动抓选区（避免无意义的 PS 模态截屏闪烁）。
     // 上传的图片保留；上次发送时抓到的选区图在重新进入时清掉，发送前会按当前选区重新抓。
     if (st.source && st.source.kind !== "file") st.source = null;
+    syncChatModeUi();
     renderChatStream();
     renderChatSource();
   }
@@ -2727,10 +2859,83 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     return text;
   }
 
+  async function writeClipboardText(text) {
+    try {
+      await navigator.clipboard.write({ "text/plain": String(text || "") });
+      return true;
+    } catch (e) {
+      console.warn("[Krea for Ps] clipboard write failed", e);
+      return false;
+    }
+  }
+
+  async function copyAgentText(text) {
+    var ok = await writeClipboardText(text);
+    toast(T(ok ? "chat.agentCopied" : "chat.agentCopyFailed"), ok ? "ok" : "error");
+  }
+
+  function sendAgentTextToGenerate(text) {
+    if (!text) return;
+    var value = String(text);
+    st.pendingPrompt = value;
+    showTab("generate");
+    // onEnterGenerate() -> renderModelForm() 会消费并清空 pendingPrompt；
+    // 这里用局部 value 回填，不能再次读 st.pendingPrompt（此时已经是 null）。
+    var input = $("promptInput");
+    if (input) input.value = value;
+    toast(T("chat.agentSentToGenerate"), "ok");
+  }
+
+  function agentRoleLabel(item) {
+    if (item.role === "user") return T("chat.agentYou");
+    if (item.role === "error") return T("chat.agentName");
+    var model = item.model ? " · " + llmLabel(item.model) : "";
+    return T("chat.agentName") + model;
+  }
+
+  function renderAgentStream(host) {
+    if (!st.agentHistory.length) {
+      host.appendChild(mk("div", { class: "chat-empty", text: T("chat.agentEmpty") }));
+      fitChatStream();
+      return;
+    }
+    st.agentHistory.forEach(function (item) {
+      var role = item.role === "user" ? "user" : item.role === "error" ? "error" : "assistant";
+      var box = mk("div", { class: "agent-msg " + role });
+      box.appendChild(mk("div", { class: "agent-role", text: agentRoleLabel(item) }));
+      if (item.pending) {
+        box.appendChild(mk("div", { class: "agent-pending", text: T("chat.agentPending") }));
+      } else {
+        box.appendChild(mk("div", { class: "agent-text", text: item.text || "" }));
+      }
+      if (role === "assistant" && !item.pending) {
+        var actions = mk("div", { class: "agent-actions" });
+        actions.appendChild(mk("button", {
+          type: "button",
+          text: T("chat.agentCopy"),
+          on: { click: function () { copyAgentText(item.text); } }
+        }));
+        actions.appendChild(mk("button", {
+          type: "button",
+          text: T("chat.agentUseAsPrompt"),
+          on: { click: function () { sendAgentTextToGenerate(item.text); } }
+        }));
+        box.appendChild(actions);
+      }
+      host.appendChild(box);
+    });
+    fitChatStream();
+    host.scrollTop = host.scrollHeight;
+  }
+
   function renderChatStream() {
     var host = $("chatStream");
     if (!host) return;
     clear(host);
+    if (st.chatMode === "agent") {
+      renderAgentStream(host);
+      return;
+    }
     if (!st.chatHistory.length) {
       host.appendChild(mk("div", { class: "chat-empty", text: T("chat.empty") }));
       fitChatStream();
@@ -2795,7 +3000,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     } catch (e) { handleError(e, "chat-place-newdoc"); }
   }
 
-  async function onChatSend() {
+  async function onImageChatSend() {
     if (st.busy) return;
     var model = MODELS.models[st.model];
     if (!model) return;
@@ -2804,10 +3009,8 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     if (!API.hasToken()) { toast(T("err.noToken"), "error"); show("screenSetup"); return; }
     if (!prompt) { toast(T("gen.needPrompt"), "error"); return; }
 
-    st.busy = true;
+    setChatBusy(true);
     st.cancelFlag = false;
-    var sendBtn = $("chatSendBtn");
-    if (sendBtn) sendBtn.disabled = true;
     // 和 App 运行页一致：抓选区 / 生成 / 下载都显示在标签栏下方的同一个运行框。
     // 抓选区阶段也允许取消；抓图返回后会先检查取消标记，不会继续提交任务。
     showProgress(T("gen.phase.capture"), modelLabel(st.model), true);
@@ -2897,24 +3100,168 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       if (input && !String(input.value || "").trim()) input.value = prompt;
       handleError(e, "chat-send");
     } finally {
-      st.busy = false;
-      if (sendBtn) sendBtn.disabled = false;
+      setChatBusy(false);
       hideProgress();
       stopProgressTimer();
     }
   }
 
+  function agentErrorText(e) {
+    if (!e) return T("err.generic", { msg: "unknown" });
+    if (e.code === "cancelled") return T("chat.agentStopped");
+    if (e.code === "agent_timeout") return T("chat.agentTimeout");
+    if (e.status === 402) return T("chat.agentNoCredits");
+    if (e.status === 403) return T("chat.agentModelNotAllowed");
+    if (e.status === 404) return T("chat.agentAttachmentMissing");
+    if (e.status === 409) return T("chat.agentBusy");
+    if (e.status === 422) return T("chat.agentInvalid", { msg: errMsg(e) });
+    return T("err.generic", { msg: errMsg(e) });
+  }
+
+  function setChatBusy(on) {
+    st.busy = !!on;
+    var ids = ["chatSendBtn", "chatModeImage", "chatModeAgent", "chatBtnPick", "chatBtnUseSelection", "chatClearBtn"];
+    ids.forEach(function (id) {
+      var el = $(id);
+      if (el) el.disabled = !!on;
+    });
+  }
+
+  /**
+   * Agent 只接受公开 URL / Krea 文件 URI。这里优先复用已上传的地址；
+   * 第一次发送时把 PS 选区或本地文件上传到 /assets。
+   */
+  async function agentAttachmentFromSource() {
+    var src = st.source;
+    if (!src || src.blank) return null;
+    if (src.assetUrl) {
+      return { url: src.assetUrl, name: src.assetName || src.name || "image", contentType: src.assetMime || src.mime || "image/jpeg" };
+    }
+    if (src.url && /^https?:\/\//i.test(src.url)) {
+      return { url: src.url, name: src.name || "image", contentType: src.mime || "image/jpeg" };
+    }
+    if (!src.base64) return null;
+    var mime = src.mime || mimeOfBase64(src.base64) || "image/jpeg";
+    var name = src.name || "image";
+    var uploaded = await API.uploadAsset(src.base64, mime, name);
+    src.assetUrl = uploaded.image_url;
+    src.assetName = name;
+    src.assetMime = mime;
+    return { url: uploaded.image_url, name: name, contentType: mime };
+  }
+
+  async function onAgentChatSend() {
+    if (st.busy) return;
+    if (!API.hasToken()) { toast(T("err.noToken"), "error"); show("screenSetup"); return; }
+    var input = $("chatPrompt");
+    var prompt = String(input && input.value || "").trim();
+    if (!prompt) { toast(T("gen.needPrompt"), "error"); return; }
+
+    setChatBusy(true);
+    st.cancelFlag = false;
+    var submitted = false;
+    var userItem = { role: "user", text: prompt, ts: Date.now() };
+    var placeholder = { role: "assistant", text: "", model: st.agentModel || "", ts: Date.now(), pending: true };
+    st.agentHistory.push(userItem);
+    st.agentHistory.push(placeholder);
+    renderChatStream();
+    if (input) input.value = "";
+    showProgress(T(st.source && !st.source.blank ? "chat.agentUploading" : "chat.agentSending"), "", false);
+    startProgressTimer();
+
+    try {
+      var attachment = await agentAttachmentFromSource();
+      var body = { prompt: prompt };
+      if (st.agentSessionId) body.sessionId = st.agentSessionId;
+      else body.name = AGENT_SESSION_NAME;
+      if (st.agentModel) body.model = st.agentModel;
+      if (attachment) body.attachments = [attachment];
+
+      setProgress(T("chat.agentSending"), llmLabel(st.agentModel));
+      var start = await API.sendAgentMessage(body);
+      if (!start || !start.sessionId || !start.runId) throw new Error("Agent 未返回 sessionId / runId");
+      submitted = true;
+      st.agentSessionId = start.sessionId;
+      st.agentRunId = start.runId;
+
+      setProgress(T("chat.agentWaiting"), llmLabel(st.agentModel));
+      var startedAt = Date.now();
+      var wait = null;
+      while (true) {
+        wait = await API.waitForAgentSession(st.agentSessionId, st.agentRunId, AGENT_WAIT_SECONDS);
+        if (wait && wait.finished) break;
+        var waited = Math.round((Date.now() - startedAt) / 1000);
+        if (Date.now() - startedAt > AGENT_MAX_WAIT_MS) {
+          var timeoutErr = new Error(T("chat.agentTimeout"));
+          timeoutErr.code = "agent_timeout";
+          throw timeoutErr;
+        }
+        setProgress(null, T("chat.agentWaitDetail", { s: waited }));
+      }
+      if (wait.status === "failed") throw new Error(wait.error || T("chat.agentNoReply"));
+      if (wait.status === "cancelled") {
+        var cancelled = new Error(T("gen.cancelled"));
+        cancelled.code = "cancelled";
+        throw cancelled;
+      }
+      var text = String(wait.text || "").trim() || T("chat.agentNoReply");
+      placeholder.pending = false;
+      placeholder.text = text;
+      renderChatStream();
+      pushHistory(prompt);
+    } catch (e) {
+      placeholder.pending = false;
+      placeholder.role = "error";
+
+      if (e && e.status === 403) {
+        if (Array.isArray(e.allowedModels) && e.allowedModels.length) st.agentAllowed = e.allowedModels.slice();
+        st.agentModel = "";
+        S.setPrefs({ agentModel: "" });
+        updateChatModelLabel();
+        placeholder.text = T("chat.agentModelFallback");
+        toast(placeholder.text, "error");
+      } else {
+        placeholder.text = agentErrorText(e);
+        if (API.isAuthError(e)) handleError(e, "chat-agent");
+        else toast(placeholder.text, "error");
+      }
+      renderChatStream();
+
+      if (!submitted) {
+        // 请求还没创建/继续会话：撤销这两条消息并恢复输入，避免重试时出现重复提问。
+        st.agentHistory.pop();
+        st.agentHistory.pop();
+        renderChatStream();
+        if (input && !String(input.value || "").trim()) input.value = prompt;
+      }
+    } finally {
+      setChatBusy(false);
+      hideProgress();
+      stopProgressTimer();
+    }
+  }
+
+  async function onChatSend() {
+    if (st.chatMode === "agent") return await onAgentChatSend();
+    return await onImageChatSend();
+  }
+
   function chatHasContent() {
     var input = $("chatPrompt");
-    return !!(st.chatHistory.length || st.source ||
+    return !!(st.chatHistory.length || st.agentHistory.length || st.source ||
       (input && String(input.value || "").trim()));
   }
 
   async function onChatClear() {
     if (st.busy || !chatHasContent()) return;
     if (!(await confirmSheet(T("chat.clearConfirm")))) return;
-    // 「清空对话」清掉这一页的所有内容：消息、上传/选区的输入图、输入框草稿。
+    // 「清空对话」清掉这一页的所有内容：两套消息、上传/选区的输入图、输入框草稿，
+    // 并结束本地 Agent 会话上下文（服务端历史不会删除，但后续消息会另起会话）。
     st.chatHistory = [];
+    st.agentHistory = [];
+    st.agentSessionId = null;
+    st.agentRunId = null;
+    st.agentAllowed = null;
     st.source = null;
     var input = $("chatPrompt");
     if (input) input.value = "";
@@ -2947,13 +3294,12 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
 
 
 /* ============================================================= */
-/* 官网精选 + 用户自有 App 离线兜底（2026-10-20 抓取自 krea.ai/nodes?tab=apps） */
-/* scope: public=官方精选, user=用户自己的；workspace 仍走 owner=workspace 实时拉取 */
+/* 官网精选 App 离线兜底（2026-10-20 抓取自 krea.ai/nodes?tab=apps） */
+/* 只保留 scope=public；账号自己的 user / workspace App 走「工作区」实时接口，
+ * 不能混进精选，否则网页上看不到的个人 App 会一直出现在「全部」里。 */
 /* v2.3.7：在线时优先同步仓库根目录 featured-apps.json；这张表只在首次安装或
  * 网络不可用时使用，官网新增/下架精选不需要再改这里、也不需要重新发版。 */
 var FEATURED_APPS = [
-{"id": "5e8b173e-e0ad-4823-9ae1-b888f03bce26", "name": "image prompting", "slug": "image-prompting", "scope": "user", "username": "terrificadvancedporpoise", "description": "", "node_app_version_id": "849893a2-7835-4405-89f5-13c624460f98", "version": 1, "example_outputs": []},
-{"id": "629d7742-70e8-4ed3-8d48-358f70a910e6", "name": "提取材质模板", "slug": "untitled", "scope": "user", "username": "terrificadvancedporpoise", "description": "照片提取实物纹理，输出**无缝平铺 Seamless Texture**，用于 3D 材质、贴图、设计背景。", "node_app_version_id": "ba28bd3b-c3b8-4759-b6b5-49eae11ba63a", "version": 1, "example_outputs": []},
 {"id": "0ce4f2cf-624f-4c9b-80f0-9365b1623525", "name": "image prompting", "slug": "image-prompting-1", "scope": "public", "username": "vicc", "description": "", "node_app_version_id": "8dae2595-78a8-4abe-970d-da3932d9c3b6", "version": 3, "example_outputs": []},
 {"id": "16cdd16f-a415-4285-94eb-8dca239ecab3", "name": "image prompting", "slug": "image-prompting", "scope": "public", "username": "vicc", "description": "", "node_app_version_id": "3f9624e9-810d-4730-ad49-8d7652a50bb9", "version": 1, "example_outputs": []},
 {"id": "bb686798-8d93-439a-9724-afb934bbe860", "name": "text expansion", "slug": "text-expansion", "scope": "public", "username": "vicc", "description": "", "node_app_version_id": "9113aded-0826-46f4-ac59-91d624831e19", "version": 1, "example_outputs": []},
@@ -3003,6 +3349,15 @@ var FEATURED_APPS = [
     if (scope === "workspace") return T("apps.scope.workspace");
     if (scope === "user") return T("apps.scope.user");
     return T("apps.scope.public");
+  }
+
+  /* 官网精选清单只应包含 scope=public 的 App。
+   * 账号自己的 user / workspace App 走「工作区」实时接口，不能混进精选，
+   * 否则网页上看不到的个人 App 会一直出现在「全部」里。 */
+  function publicFeaturedApps(items) {
+    return (items || []).filter(function (a) {
+      return !!a && (!a.scope || a.scope === "public");
+    });
   }
 
   function normalizeApp(raw) {
@@ -3253,7 +3608,7 @@ if (ex && (typeof index !== "number" || index < 60)) thumb.src = ex;
       var seen = {};
       for (var i = 0; i < list.length && items.length < 300; i++) {
         var app = normalizeApp(list[i]);
-        if (!app || seen[app.id]) continue;
+        if (!app || app.scope !== "public" || seen[app.id]) continue;
         seen[app.id] = 1;
         items.push(app);
       }
@@ -3340,8 +3695,8 @@ var more = $("btnAppsMore");
    * 刷新 App 列表。
    * 数据源策略（v2.3.7）：
    *  - 工作区视图：实时拉 owner=workspace（用户/团队自建 App）；
-   *  - 全部 / 收藏视图：读取仓库 main 分支的 featured-apps.json（官网精选 +
-   *    用户自有）。启动时 6 小时内复用本地缓存，手动刷新强制以官网清单为准；
+   *  - 全部 / 收藏视图：读取仓库 main 分支的 featured-apps.json（仅 public
+   *    官网精选）。启动时 6 小时内复用本地缓存，手动刷新强制以官网清单为准；
    *    网络失败时依次回退到本地缓存、内置 FEATURED_APPS，列表不会变空。
    *  - 精选 App 的 schema / execute 在打开时用 App ID 取最新定义，旧
    *    node_app_version_id 只作为兼容回退。
@@ -3368,7 +3723,10 @@ var more = $("btnAppsMore");
         st.appsSource = "workspace";
       } else {
         var cached = await S.readJson(FEATURED_CACHE, null);
-        var cacheItems = cached && Array.isArray(cached.items) && cached.items.length ? cached.items : null;
+        var cacheItems = cached && Array.isArray(cached.items) && cached.items.length
+          ? publicFeaturedApps(cached.items)
+          : null;
+        if (cacheItems && !cacheItems.length) cacheItems = null;
         var cacheAge = cached ? Date.now() - (cached.savedAt || 0) : Infinity;
         if (!interactive && cacheItems && cacheAge >= 0 && cacheAge < FEATURED_TTL) {
           items = cacheItems.slice();
@@ -3402,7 +3760,7 @@ var more = $("btnAppsMore");
               fetchedAt = cached.savedAt || 0;
               st.appsSource = "cache";
             } else {
-              items = FEATURED_APPS.slice();
+              items = publicFeaturedApps(FEATURED_APPS);
               fetchedAt = 0;
               st.appsSource = "builtin";
             }
@@ -3466,7 +3824,8 @@ var more = $("btnAppsMore");
       source = "workspace";
     }
 
-    st.apps = (raw || FEATURED_APPS).map(normalizeApp).filter(Boolean);
+    var initial = (raw || FEATURED_APPS).map(normalizeApp).filter(Boolean);
+    st.apps = source === "workspace" ? initial : publicFeaturedApps(initial);
     st.appsFetchedAt = savedAt;
     st.appsSource = raw ? source : "builtin";
     st.appsOffline = false;
@@ -4261,6 +4620,12 @@ $("promptName").value = it ? libText(it.name) : "";
     st.source = null;
     st.refs = [];
     st.chatHistory = [];
+    st.chatMode = "image";
+    st.agentModel = "";
+    st.agentAllowed = null;
+    st.agentHistory = [];
+    st.agentSessionId = null;
+    st.agentRunId = null;
     st.lastSnapshot = null;
     st.genAgain = false;
     st.lastGenShot = null;
@@ -5396,7 +5761,21 @@ $("appFilters").addEventListener("click", function (ev) {
     if ($("btnImportApp")) $("btnImportApp").addEventListener("click", onImportText);
     if ($("btnRunApp")) $("btnRunApp").addEventListener("click", onRunApp);
 
-    // 对话式生成（图像 / Banana tab）
+    // 对话页：图像生成 / AI 对话双模式
+    if ($("chatModeImage")) $("chatModeImage").addEventListener("click", function () { setChatMode("image", true); });
+    if ($("chatModeAgent")) $("chatModeAgent").addEventListener("click", function () { setChatMode("agent", true); });
+    if ($("chatBtnUseSelection")) $("chatBtnUseSelection").addEventListener("click", async function () {
+      try {
+        await captureSelectionForGenerate();
+        renderChatSource();
+        var src = st.source;
+        toast(T("gen.sourceSel", { w: (src && src.width) || 0, h: (src && src.height) || 0 }), "ok");
+      } catch (e) {
+        var msg = errMsg(e);
+        toast(msg === T("gen.needDoc") || msg === T("gen.needSelection")
+          ? T("chat.needSource") : T("gen.captureFailed", { msg: msg }), "error");
+      }
+    });
     if ($("chatBtnPick")) $("chatBtnPick").addEventListener("click", async function () {
       try {
         var files = await PS.pickImageFiles(false);
@@ -5674,6 +6053,8 @@ st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
     st.appFilter = ["all", "fav", "workspace"].indexOf(st.prefs.appFilter) >= 0 ? st.prefs.appFilter : "all";
     if (st.prefs.sampling !== "selected") st.prefs.sampling = "visible";
     if (st.prefs.outputMode !== "replace") st.prefs.outputMode = "newLayer";
+    st.chatMode = st.prefs.chatMode === "agent" ? "agent" : "image";
+    st.agentModel = AGENT_MODEL_LABELS[st.prefs.agentModel] ? st.prefs.agentModel : "";
     try { buildModelPicker(); } catch (e) { /* ignore */ }
 
     // Token：超时后不把 tokenTask 丢掉，它稍后读到的 Token 仍可在后台恢复。

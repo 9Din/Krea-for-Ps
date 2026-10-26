@@ -1900,6 +1900,34 @@ sp-textarea { min-height: 52px; }
   box-sizing: border-box;
 }
 .chat-top-row .model-trigger { flex: 1 1 auto; min-width: 0; }
+/* 图像生成 / AI 对话 模式切换。用普通 button，避免旧版 UXP 对 sp-button 的尺寸处理差异。 */
+.chat-mode-switch {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--k-border);
+  border-radius: 5px;
+  background: var(--k-bg-2);
+}
+.chat-mode-btn {
+  height: 18px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--k-text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chat-mode-btn.active {
+  background: var(--k-blue);
+  color: #fff;
+}
 /* 对话页三个控件都必须按父容器的 content-box 精确收边：
    UXP 对 <button> / <sp-button> 宿主的 box-sizing 处理不稳定，
    只写 width:100% 时会把 padding / 边框再加一遍，右侧就会探出面板。 */
@@ -1994,6 +2022,63 @@ sp-textarea { min-height: 52px; }
   text-align: center;
 }
 .chat-card-status.error { color: #ff9b9b; }
+/* AI 对话：用户 / Agent 文本气泡。文本必须可选中，方便复制提示词。 */
+.agent-msg {
+  flex: 0 0 auto;
+  max-width: 100%;
+  border: 1px solid var(--k-border-2);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--k-bg);
+}
+.agent-msg.user {
+  align-self: flex-end;
+  max-width: 90%;
+  background: rgba(20, 115, 230, .14);
+  border-color: rgba(20, 115, 230, .45);
+}
+.agent-msg.assistant { align-self: stretch; }
+.agent-msg.error {
+  border-color: rgba(215, 55, 63, .55);
+  background: rgba(215, 55, 63, .1);
+}
+.agent-role {
+  margin-bottom: 3px;
+  color: var(--k-text-dim);
+  font-size: 9px;
+  line-height: 1.2;
+}
+.agent-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.5;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.agent-msg.error .agent-text { color: #ffb4b4; }
+.agent-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.agent-actions button {
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--k-text);
+  background: var(--k-bg-3);
+  border: 1px solid var(--k-btn-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.agent-actions button:hover { background: var(--k-bg-2); }
+.agent-pending {
+  color: var(--k-text-dim);
+  font-size: 10px;
+  font-style: italic;
+}
 .chat-composer {
   flex: 0 0 auto;
   width: 100%;
@@ -2010,6 +2095,7 @@ sp-textarea { min-height: 52px; }
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 4px;
 }
 /* 「清空对话」紧跟在上传按钮右侧；两个按钮一起靠右，不再显示默认选区徽标。 */
