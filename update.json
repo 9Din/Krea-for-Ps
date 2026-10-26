@@ -1,0 +1,6 @@
+{
+  "version": "2.3.7",
+  "notes": "Apps 列表自动同步官网精选清单，新增/下架 App 无需更新插件；打开 App 时优先获取最新定义与版本，并保留 6 小时缓存和离线回退。",
+  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.3.7/Krea-for-Ps-2.3.7.ccx",
+  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.3.7"
+}
