@@ -28,7 +28,7 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.3.5";
+  var VERSION = "2.3.6";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
   /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
   var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
@@ -3006,6 +3006,8 @@ var FEATURED_APPS = [
       slug: raw.slug,
       example_outputs: raw.example_outputs || null,
       input_openapi_schema: raw.input_openapi_schema || raw.schema || null,
+      output_openapi_schema: raw.output_openapi_schema || null,
+      category: raw.category || raw.categories || raw.media_type || raw.output_type || raw.app_type || null,
       node_app_version_id: raw.node_app_version_id || null,
       source: raw.source || "remote"
     };
@@ -3111,16 +3113,88 @@ if (ex && (typeof index !== "number" || index < 60)) thumb.src = ex;
     return card;
   }
 
-  /* */
-  function isVideoApp(app) {
-    var props = app.input_openapi_schema && app.input_openapi_schema.properties;
+  /* 官网 Apps 页新增了 Image / Video / Text 类型筛选，但 /node-apps 列表接口
+     没有 category 字段。这里按「官网预览视频 / 输出 schema 里的视频模型 /
+     已知精选视频 App」判断；视频和音频结果都无法在 Photoshop 里置入。
+     精选快照没有 schema 的 App 由 VIDEO_APP_IDS 兜底（2026-10 官网列表）。 */
+  var VIDEO_APP_IDS = {
+    "497c1aa0-420f-418a-820e-a55c4dcb7219": 1, // Frozen!
+    "f873cc92-7b1b-407e-b655-223c74f265f7": 1, // Jungle Run
+    "2e34862d-111b-45dc-939a-cee1d42d8214": 1, // Monday Blues
+    "48b8c3d4-f1b5-45e6-acc4-f671e34943ee": 1, // Astro Danger
+    "8dfa0656-d74c-452a-87fe-70a14da00c1f": 1, // Sims Character
+    "06a70961-db5a-4094-b126-9d5be1456fd6": 1, // Hydraulic Press
+    "f7b4f748-09ce-486b-b037-ca832ed7bc62": 1, // Moving Ad
+    "a3c505bc-8a79-416e-a33b-9d3d985e03a4": 1, // CCTV Footage
+    "a947283b-7297-431a-a8a9-27e8839396e8": 1, // Fisheye
+    "d48e4f19-0c70-432c-add0-85f92b092439": 1, // GTA Me!
+    "f37db0a8-187b-43f9-9303-b3f9442d93fa": 1, // News Interview
+    "5bd8b0ca-5a11-47e6-a52c-a64db018db38": 1, // Krea Street
+    "30fbb66b-afb3-4e4e-9efa-0585c3cea3e2": 1, // Duplicate Me
+    "0eefe130-da52-45d4-ac2d-ab405ce358b5": 1, // Who Me?
+    "f3a1b100-3cfb-4174-b121-37e727bf9f06": 1, // Outfit Check
+    "7447e150-0235-4bcd-8255-5a8264b1a58c": 1, // Big Head!
+    "a1aa980e-77a8-4eed-bbe5-3fa078b04e91": 1, // Floating On Water
+    "83855da9-f5a8-4418-8dbd-ec9c989d2ef1": 1, // XXXL T Shirt
+    "62068163-3759-4d37-8f9a-e14d6541e2d6": 1, // Supersize Me
+    "37a2a44d-9e37-4e45-a54b-cdf40205c6dd": 1  // 360 Sunglasses Product Video
+  };
+
+  /* 视频/音频输出示例；只匹配扩展名，不会把带 poster 的图片示例误判。 */
+  var VIDEO_URL_RE = /\.(mp4|webm|mov|m4v|mp3|wav|m4a|aac|ogg)([?#]|$)/i;
+  /* 输出 schema 没有 wire-type，只能从属性名 / title / description 识别模型。 */
+  var VIDEO_PROP_RE = /(^|[^a-z])(video|videos|audio|voiceover|voice_over|lip_?sync|lipsync|talking|animate|animated|animation|motion_control|seedance|veo|kling|hailuo|sora|runway|pika|minimax|pixverse|vidu|dreamina|grok_imagine|stitch_videos|combine_video_audio|footage|movie|ltx|mochi|cogvideo|wan_[0-9])([^a-z]|$)/i;
+
+  function appSchemaProps(schema) {
+    if (typeof schema === "string") {
+      try { schema = JSON.parse(schema); } catch (e) { return null; }
+    }
+    return schema && schema.properties ? schema.properties : null;
+  }
+
+  /** 输入/输出 schema 里只要出现视频或音频，就视为 Photoshop 用不到。 */
+  function schemaHasVideo(props) {
     if (!props) return false;
-    var kinds = Object.keys(props).map(function (k) {
-      return (props[k] && props[k]["x-krea-wire-type"]) || "";
-    });
-    if (!kinds.length) return false;
-    var media = kinds.filter(function (k) { return k === "video" || k === "audio"; });
-    return media.length === kinds.length;
+    var keys = Object.keys(props);
+    for (var i = 0; i < keys.length; i++) {
+      var p = props[keys[i]] || {};
+      var wire = p["x-krea-wire-type"];
+      if (wire) {
+        if (wire === "video" || wire === "audio") return true;
+        continue;
+      }
+      var text = keys[i] + " " + (p.title || "") + " " + (p.description || "");
+      if (VIDEO_PROP_RE.test(text)) return true;
+    }
+    return false;
+  }
+
+  function isVideoApp(app) {
+    if (!app) return false;
+    if (VIDEO_APP_IDS[app.id]) return true;
+
+    var category = app.category;
+    if (category) {
+      if (Array.isArray(category)) category = category.join(" ");
+      if (/(^|[^a-z])(video|videos|audio)([^a-z]|$)/i.test(String(category))) return true;
+    }
+
+    var examples = app.example_outputs || [];
+    for (var i = 0; i < examples.length; i++) {
+      if (VIDEO_URL_RE.test(String(examples[i] || ""))) return true;
+    }
+
+    var inputProps = appSchemaProps(app.input_openapi_schema);
+    var outputProps = appSchemaProps(app.output_openapi_schema);
+    if (schemaHasVideo(inputProps) || schemaHasVideo(outputProps)) return true;
+
+    // 精选 App 的列表快照没有 schema；只有在这种情况下才看文案，避免把
+    // “支持视频输入”之类的说明误判成视频 App。
+    if (!inputProps && !outputProps) {
+      var text = String(app.name || "") + " " + String(app.description || "");
+      if (VIDEO_PROP_RE.test(text)) return true;
+    }
+    return false;
   }
 
   function renderAppFilters() {
@@ -3157,7 +3231,12 @@ var more = $("btnAppsMore");
       // 计数必须和当前实际渲染的卡片一致：同时受 Tab（全部/工作区/收藏）和搜索过滤影响。
       status.appendChild(mk("span", { text: T("apps.total", { n: list.length }) }));
     }
-    var hidden = mergeApps().filter(isVideoApp).length;
+    var hidden = mergeApps().filter(function (a) {
+      if (!isVideoApp(a)) return false;
+      if (st.appFilter === "workspace") return a.scope === "workspace";
+      if (st.appFilter === "fav") return favorites().indexOf(a.id) >= 0;
+      return a.scope !== "workspace";
+    }).length;
     if (hidden > 0) {
       status.appendChild(mk("span", { class: "badge", text: T("apps.hiddenMedia", { n: hidden }), title: T("apps.hiddenMediaTip") }));
     }
@@ -5604,6 +5683,7 @@ check("api.token", API.hasToken(), API.hasToken() ? "ok" : "not configured");
     normalizeApp: normalizeApp,
     mergeApps: mergeApps,
     filteredApps: filteredApps,
+    isVideoApp: isVideoApp,
     favorites: favorites,
     isFavorite: isFavorite,
     toggleFavorite: toggleFavorite,

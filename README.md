@@ -35,9 +35,9 @@ Patch numbers stay single-digit for easy verbal reference:
 
 Release naming:
 
-- Tag: `v2.3.5`
-- Title: `Krea for Ps 2.3.5`
-- Asset: `Krea-for-Ps-2.3.5.ccx`
+- Tag: `v2.3.6`
+- Title: `Krea for Ps 2.3.6`
+- Asset: `Krea-for-Ps-2.3.6.ccx`
 
 ## Source layout
 

@@ -119,7 +119,7 @@ window.KREA_I18N = (function () {
     "apps.placeNewDoc": ["置入新画布", "Place in new canvas"],
     "apps.badgeVideo": ["视频 / 音频", "Video / audio"],
     "apps.hiddenMedia": ["已隐藏 {n} 个视频/音频 App", "{n} video/audio apps hidden"],
-    "apps.hiddenMediaTip": ["这些 App 的输入全是视频或音频，Photoshop 用不到。", "These apps only take video or audio input, which Photoshop cannot use."],
+    "apps.hiddenMediaTip": ["这些 App 会输出视频/音频，或只接受视频/音频输入，Photoshop 无法使用。", "These apps output video/audio, or only accept video/audio input, which Photoshop cannot use."],
     "apps.refreshing": ["正在拉取 App 列表…", "Fetching apps…"],
     "apps.refresh": ["刷新列表", "Refresh"],
     "apps.fetchFailed": ["拉取失败：{msg}", "Fetch failed: {msg}"],
