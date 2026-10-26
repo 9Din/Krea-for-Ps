@@ -1,0 +1,596 @@
+{
+  "schema": 1,
+  "updated_at": "2026-10-26T13:13:20.948Z",
+  "source": "https://www.krea.ai/nodes?tab=apps",
+  "apps": [
+    {
+      "id": "5e8b173e-e0ad-4823-9ae1-b888f03bce26",
+      "name": "image prompting",
+      "slug": "image-prompting",
+      "scope": "user",
+      "username": "terrificadvancedporpoise",
+      "description": "",
+      "node_app_version_id": "849893a2-7835-4405-89f5-13c624460f98",
+      "version": 1,
+      "example_outputs": []
+    },
+    {
+      "id": "629d7742-70e8-4ed3-8d48-358f70a910e6",
+      "name": "提取材质模板",
+      "slug": "untitled",
+      "scope": "user",
+      "username": "terrificadvancedporpoise",
+      "description": "照片提取实物纹理，输出**无缝平铺 Seamless Texture**，用于 3D 材质、贴图、设计背景。",
+      "node_app_version_id": "ba28bd3b-c3b8-4759-b6b5-49eae11ba63a",
+      "version": 1,
+      "example_outputs": []
+    },
+    {
+      "id": "0ce4f2cf-624f-4c9b-80f0-9365b1623525",
+      "name": "image prompting",
+      "slug": "image-prompting-1",
+      "scope": "public",
+      "username": "vicc",
+      "description": "",
+      "node_app_version_id": "8dae2595-78a8-4abe-970d-da3932d9c3b6",
+      "version": 3,
+      "example_outputs": []
+    },
+    {
+      "id": "16cdd16f-a415-4285-94eb-8dca239ecab3",
+      "name": "image prompting",
+      "slug": "image-prompting",
+      "scope": "public",
+      "username": "vicc",
+      "description": "",
+      "node_app_version_id": "3f9624e9-810d-4730-ad49-8d7652a50bb9",
+      "version": 1,
+      "example_outputs": []
+    },
+    {
+      "id": "bb686798-8d93-439a-9724-afb934bbe860",
+      "name": "text expansion",
+      "slug": "text-expansion",
+      "scope": "public",
+      "username": "vicc",
+      "description": "",
+      "node_app_version_id": "9113aded-0826-46f4-ac59-91d624831e19",
+      "version": 1,
+      "example_outputs": []
+    },
+    {
+      "id": "497c1aa0-420f-418a-820e-a55c4dcb7219",
+      "name": "Frozen!",
+      "slug": "frozen",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Create eye-catching gravity-defying video. Using your portrait and a location, the app generates a realistic scene where",
+      "node_app_version_id": "ca860a09-600e-4f25-b9cf-5711f005222a",
+      "version": 2,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/1b58fa05-6a9f-48c9-b66b-f56816527a12.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "7c6b8b92-e688-4b0c-877f-b9b76e6952de",
+      "name": "Ceramic Me",
+      "slug": "ceramic-me-2",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload a portrait and transform it into a realistic ceramic sculpture. Create beautiful ceramic versions of your photos ",
+      "node_app_version_id": "c9ae3025-d013-4927-91cf-bacc923493c2",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/5069ff92-6a6c-4864-934d-ef9857379995.png"
+      ]
+    },
+    {
+      "id": "4213f909-6048-4686-bc09-9317b42d7fab",
+      "name": "Botanical editorial",
+      "slug": "botanical-editorial",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload your product and generate elegant botanical product editorials.",
+      "node_app_version_id": "8baac758-dd31-48da-8e23-18fecfc4f8b5",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/27f234b3-2472-40b9-a5f7-bd4766016581-image.png"
+      ]
+    },
+    {
+      "id": "c714983d-5b5c-47ed-b622-f7a25cb4520e",
+      "name": "Liquid Chrome Editorial",
+      "slug": "liquid-chrome-editorial",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Create a styled product editorial in one click.\nUpload a product image and generate a sculptural scene around it using l",
+      "node_app_version_id": "d2701852-d9f7-422e-83cd-f608fc29d8b8",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/624c4579-d0e9-421d-b3e4-ebe880897787-image.png"
+      ]
+    },
+    {
+      "id": "0f376dfa-a5ba-442b-9566-3ccad6d1a0b8",
+      "name": "Floral Product Editorial",
+      "slug": "floral-product-editorial",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Create a floral product editorial in one click.\nUpload an image of your product and the template will generate a styled ",
+      "node_app_version_id": "344021d1-8edc-4797-b46e-baf092bf30bc",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/989196b8-6df4-4701-b8ee-14d61b97b634-image.png"
+      ]
+    },
+    {
+      "id": "19b49b99-71a7-4165-ba47-634d46bb76d9",
+      "name": "Jell-O This",
+      "slug": "jell-o-this",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Turn any object into soft Jell-O!",
+      "node_app_version_id": "5298286d-4727-4fae-b8fa-0a430f020707",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/59b643cd-a235-4cad-b30d-3486eb20cc48-image.png"
+      ]
+    },
+    {
+      "id": "7aea8d81-fb57-45d7-b4bb-e536c805c633",
+      "name": "Fossilize This",
+      "slug": "fossilize-this",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Turn any object into an ancient artifact!",
+      "node_app_version_id": "d85c7b6e-575e-48e6-ad6f-dbad7fee4e8b",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/ca930701-11c1-4583-a1a1-14cd90fa900c-image.png"
+      ]
+    },
+    {
+      "id": "7f5dc085-ab72-46ed-b7c8-37484c4706ad",
+      "name": "Product Editorial Shot",
+      "slug": "product-editorial-shot",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Just upload a single product image. ",
+      "node_app_version_id": "3533d57f-8d23-4200-9833-cb5859560efa",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/bbb243d3-ab0a-4fbd-b525-0615833454d3.png"
+      ]
+    },
+    {
+      "id": "e7319a76-2f3a-4edb-877e-d2b27474aa81",
+      "name": "Crystallize This",
+      "slug": "crystallize-this",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Turn any object into a piece of art!",
+      "node_app_version_id": "203df90c-ed0c-4a17-9bcc-b4b4a55d4a3d",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/1cfd5218-ce2a-457f-9f19-0a08a3df4f47.png"
+      ]
+    },
+    {
+      "id": "52be2a23-abff-4f1e-868a-196d50e6cfb1",
+      "name": "Pet Valentine transformation",
+      "slug": "pet-valentine-transformation",
+      "scope": "public",
+      "username": "oddatide",
+      "description": "Turn your pet into a Valentine’s Day photo with heart-patterned fur.\n\nUpload a photo of your dog, cat, or any animal and",
+      "node_app_version_id": "a9225d52-5ba7-436e-a8d5-bfa2bb8b7d2f",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/060a633b-67d4-473c-8400-9d7d96d8a0e4-image.jpeg"
+      ]
+    },
+    {
+      "id": "4c81f9a6-9b85-4b27-a34a-58e289494f4a",
+      "name": "2016",
+      "slug": "2016",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Not got any throwbacks from 2016? No problem!",
+      "node_app_version_id": "a2c792cd-7236-4319-b68a-eaa49599cb94",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/506db1d1-a028-4d08-9564-5faea671f824-image.jpeg"
+      ]
+    },
+    {
+      "id": "f873cc92-7b1b-407e-b655-223c74f265f7",
+      "name": "Jungle Run",
+      "slug": "jungle-run",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Jungle Run",
+      "node_app_version_id": "8a09c340-6cc1-438e-9659-d935a364733d",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/8c9bb0ae-9d9c-443a-aad8-50e902f13ec2-video.mp4"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "2e34862d-111b-45dc-939a-cee1d42d8214",
+      "name": "Monday Blues",
+      "slug": "monday-blues",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Monday Blues",
+      "node_app_version_id": "80cf4040-5dab-4ba1-af5a-815e7856f88b",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/9348365c-7470-428e-b774-28ac354395a9-video.mp4"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "48b8c3d4-f1b5-45e6-acc4-f671e34943ee",
+      "name": "Astro Danger",
+      "slug": "astro-danger",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Cinematic Astronaut Scene",
+      "node_app_version_id": "54b7ec5c-30e4-41f5-8ae1-ce21b4a0827e",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/4442e7f4-d640-45f9-a7a2-a068269d3848-video.mp4"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "8f452d90-aeb9-43dc-8378-4ef8f3e24a7f",
+      "name": "Roast Me",
+      "slug": "roast-me",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Upload a full outfit pic and let the Node roast you!",
+      "node_app_version_id": "e2104db5-9216-4286-9b98-7b1c412349f2",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/28510121-6985-4494-9833-59b85311b9e1-image.jpeg"
+      ]
+    },
+    {
+      "id": "8dfa0656-d74c-452a-87fe-70a14da00c1f",
+      "name": "Sims Character",
+      "slug": "sims-character",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Upload an image of yourself and an environment!",
+      "node_app_version_id": "f84e67e7-7c31-49db-9a46-ee197c633d88",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/2ef6a63e-950d-474f-b7eb-133e302279cb.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "6a7e2f8f-a515-4f38-9065-32e11cb82437",
+      "name": "Animorph Yourself",
+      "slug": "animorph-yourself",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload your photo and an animal image, and get your own Animorph-style transformation sequence.",
+      "node_app_version_id": "07a7dd30-9e58-4cbe-a344-5c053882234b",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/de066c86-3a58-4f60-9fb6-9f65891f5929.png"
+      ]
+    },
+    {
+      "id": "06a70961-db5a-4094-b126-9d5be1456fd6",
+      "name": "Hydraulic Press",
+      "slug": "hydraulic-press",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Watch your favourite item get crushed!",
+      "node_app_version_id": "0e553be5-c175-4775-b67b-d57a3c545f7f",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/b293c6a2-7291-47c0-a8ec-b3afe65f433f.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "76b04248-c3d7-434f-a69b-fc0b1aa9bb36",
+      "name": "Dollz Maker",
+      "slug": "dollz-maker",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload your image and instantly get a cute pixel-art version of yourself inspired by early 2000s doll makers.",
+      "node_app_version_id": "f9e77638-96ea-49af-8c16-6fc314a1375b",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/1d2e94a8-76c0-4bc2-80a4-a44a3339a3be.png"
+      ]
+    },
+    {
+      "id": "c1d309bc-eee9-4834-828b-419d2a2ae54f",
+      "name": "Digicam",
+      "slug": "digicam",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload an image and the app places your face onto the screen of an early-2000s point-and-shoot camera.",
+      "node_app_version_id": "5feb80b2-137e-4503-bd73-32453526fe0a",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/ef96ccd7-8824-453c-88c8-63ca347a8e4a.png"
+      ]
+    },
+    {
+      "id": "0487ab93-cfd5-4320-936d-287025f8c90d",
+      "name": "Rare Artifact",
+      "slug": "rare-artifact",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Upload a product image (a high quality image with a white background will work best) ",
+      "node_app_version_id": "7cf997e7-97c5-4636-aee6-db47976dc994",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/4271e290-2519-44e2-98e6-85190b194f03.png"
+      ]
+    },
+    {
+      "id": "f7b4f748-09ce-486b-b037-ca832ed7bc62",
+      "name": "Moving Ad",
+      "slug": "moving-ad",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload an image or a poster, and the app places your design on the back of the vehicle and generates a video of the van ",
+      "node_app_version_id": "070d323d-e2ae-4575-8b26-93ca445656c9",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/40b3f072-01ec-4320-a3d6-2c2f565b489b.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "a3c505bc-8a79-416e-a33b-9d3d985e03a4",
+      "name": "CCTV Footage",
+      "slug": "cctv-footage-1",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Generate realistic multi-camera CCTV-style footage from a single image.\nUpload a photo and the app creates four differen",
+      "node_app_version_id": "c9f76567-3a9d-46c7-8fa3-a7ff3ce9d3a6",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/1e260f88-d6e3-42e5-971e-fcaece484201.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "a947283b-7297-431a-a8a9-27e8839396e8",
+      "name": "Fisheye",
+      "slug": "fisheye",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload your photo and we’ll turn you into a fisheye video shot on the streets of New York.",
+      "node_app_version_id": "1221bd04-5934-41e5-8a4b-9fce2b9dbc4d",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/4524b11a-6bf3-425d-9079-6c7f08ad2384.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "5671c151-79bf-451a-9ef6-e291e03c7a0c",
+      "name": "Arabian drift core",
+      "slug": "arabian-drift-core",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload your portrait and a car image, and we’ll turn them into a surreal desert-drift artwork like this.",
+      "node_app_version_id": "182474a7-2d3d-4e71-ae22-7e62f029d64a",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/7a4a5cab-dd16-4fd5-9879-c41c66693e29.png"
+      ]
+    },
+    {
+      "id": "a1aa980e-77a8-4eed-bbe5-3fa078b04e91",
+      "name": "Floating On Water",
+      "slug": "floating-on-water",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Upload your product image and let Krea do the rest.",
+      "node_app_version_id": "cb9d4074-a467-40d2-82b2-ed8be60fff1c",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/88027ea7-a102-4c8d-bfed-9cbd1d93b2b3.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "83855da9-f5a8-4418-8dbd-ec9c989d2ef1",
+      "name": "XXXL T Shirt",
+      "slug": "xxxl-t-shirt",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Upload a photo of your t shirt and let Krea do the rest!",
+      "node_app_version_id": "29aeb189-9e2e-41ff-9a90-5aa583935392",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/286442de-cf7e-4616-9603-54229618097e.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "d48e4f19-0c70-432c-add0-85f92b092439",
+      "name": "GTA Me!",
+      "slug": "gta-me-1",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Upload a photo of yourself and complete the mission.",
+      "node_app_version_id": "30ca5f0f-d4cc-426e-952b-827d31f3ba3e",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/5ef1886c-e73b-450c-a005-cb5b4219d0d5.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "f37db0a8-187b-43f9-9303-b3f9442d93fa",
+      "name": "News Interview",
+      "slug": "news-interview",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Ever wanted to be on TV? nows your chance! ",
+      "node_app_version_id": "f7fbc48f-ac3d-49ff-81ac-3312672b132f",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/a1f17002-a6fd-4924-8d15-c485043ae5dc.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "5bd8b0ca-5a11-47e6-a52c-a64db018db38",
+      "name": "Krea Street",
+      "slug": "krea-street",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Insert a photo of yourself! ",
+      "node_app_version_id": "f3950feb-6417-414c-afa6-f29ab5ec18da",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/22c33ae7-7307-4ca2-99f8-7c0280df670b.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "30fbb66b-afb3-4e4e-9efa-0585c3cea3e2",
+      "name": "Duplicate Me",
+      "slug": "duplicate-me",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Insert a full length photo for best results!",
+      "node_app_version_id": "a7edab69-cab1-4329-ad8f-500b4e450af6",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/e0e28539-e70a-4bab-9ef7-1e305169e664.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "0eefe130-da52-45d4-ac2d-ab405ce358b5",
+      "name": "Who Me?",
+      "slug": "who-me",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Insert one full length photo of yourself for the best result",
+      "node_app_version_id": "c007ef26-4a89-48f9-af10-7ac5c4631097",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/ef52e5a7-3d7c-45a7-b558-529ecbb4c814.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "f3a1b100-3cfb-4174-b121-37e727bf9f06",
+      "name": "Outfit Check",
+      "slug": "outfit-check",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Insert a full length photo for best results",
+      "node_app_version_id": "785cd9d1-3942-4a01-8132-3169eb2811ad",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/a0cf764e-6b61-48d7-a5eb-c3bce7f0ea24.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "7447e150-0235-4bcd-8255-5a8264b1a58c",
+      "name": "Big Head!",
+      "slug": "big-head",
+      "scope": "public",
+      "username": "Numan",
+      "description": "Insert a full length photo for best results ",
+      "node_app_version_id": "4dba5711-e441-4f32-b23b-3fb19f497902",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/507bd14b-c729-4670-8b3b-736365f93772.png"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "62068163-3759-4d37-8f9a-e14d6541e2d6",
+      "name": "Supersize Me",
+      "slug": "supersize-me",
+      "scope": "public",
+      "username": "Numan",
+      "description": "This mini app works best with a full length image. ",
+      "node_app_version_id": "8d7b3993-b566-40e9-8fc5-6a0a7f06385d",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/4c8dc413-55e0-4f92-9ea2-0b98e05d4159-video.mp4"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "37a2a44d-9e37-4e45-a54b-cdf40205c6dd",
+      "name": "360 Sunglasses Product Video",
+      "slug": "360-sunglasses-product-video",
+      "scope": "public",
+      "username": "Beccu",
+      "description": "Upload an image of your model and an image of the glasses, and get a 360° rotation video showing the model wearing the g",
+      "node_app_version_id": "68ddc067-c625-4bb0-a1e5-bd4c707e43bd",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/6a501a4c-df7d-47eb-93f6-84fd384f2a15-image.jpeg"
+      ],
+      "category": "video"
+    },
+    {
+      "id": "6a9d40a0-3898-49ae-872f-4ed9244d70e6",
+      "name": "Photoshoot App",
+      "slug": "photoshoot-app-1",
+      "scope": "public",
+      "username": "vicc",
+      "description": "Create a photoshoot from any input image.",
+      "node_app_version_id": "4f830b88-deb6-4222-8874-b092f85a33e7",
+      "version": 1,
+      "example_outputs": [
+        "https://app-uploads.krea.ai/public/211a76a4-1bdb-432b-b77a-d465490e410a.png"
+      ]
+    },
+    {
+      "id": "85491150-80d1-46a6-a569-0bfc9f1bcf2f",
+      "name": "Style Transfer with Nano Banana",
+      "slug": "style-transfer-with-nano-banana",
+      "scope": "public",
+      "username": "vicc",
+      "description": "Transfer the style of the input image into any prompt.",
+      "node_app_version_id": "63785347-b8fe-43bc-80a8-4b119a7d9e1c",
+      "version": 1,
+      "example_outputs": []
+    },
+    {
+      "id": "220dead2-f2de-4836-ab24-bc714a61ad1a",
+      "name": "Exploded View Drawing",
+      "slug": "exploded-view-drawing",
+      "scope": "public",
+      "username": "vicc",
+      "description": "Turn any image into an exploded-view drawing",
+      "node_app_version_id": "55626b53-b15e-4fe1-bc8f-d37d82d0e7fe",
+      "version": 1,
+      "example_outputs": []
+    },
+    {
+      "id": "00e7fed9-8bf0-4e6e-9686-76db9d572c39",
+      "name": "Photoshoot with Nano Banana 2",
+      "slug": "photoshoot-with-nano-banana-2",
+      "scope": "public",
+      "username": "vicc",
+      "description": "",
+      "node_app_version_id": "711fe205-10ff-4154-81d7-bf2f0a11ab18",
+      "version": 1,
+      "example_outputs": []
+    }
+  ]
+}

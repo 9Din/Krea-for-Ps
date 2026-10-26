@@ -1,7 +1,8 @@
 # Krea for Ps
 
-Native Photoshop UXP panel for Krea — selection-driven AI image generation and
-editing, with outputs inserted as separate layers.
+Native Photoshop UXP panel for Krea — run Krea Apps, generate images from a text
+prompt or the current selection, and place results straight into the document as
+layers.
 
 ## Install
 
@@ -11,6 +12,29 @@ completely, then double-click the file. Creative Cloud will show an
 "unverified" warning; choose **Install locally**.
 
 Requires Photoshop 22.5+ (UXP).
+
+## Features
+
+- **Apps** — browse Krea's featured apps plus your own and workspace apps, fill
+  the form generated from each app's OpenAPI schema, and place the generated
+  image into the current document. Image fields can use the current selection.
+- **Live app catalog** — the featured list is synced from
+  [`featured-apps.json`](featured-apps.json) on startup (cached for 6 hours) and
+  whenever you press refresh. New or removed official apps appear without
+  updating the plugin.
+- **Latest app definitions** — opening an app first asks the API for the app by
+  ID, so the form and execution use the current `node_app_version_id`; the
+  version stored in the catalog is only a compatibility fallback.
+- **Generate** — 44 image models grouped by task, prompt presets, reference
+  images, selection-aware layer sampling, feathering, and new-layer/replace-layer
+  output.
+- **Chat** — iterative image editing and generation with a compact chat stream.
+- **Assets, history and prompt library** — thumbnails, retry/cancel, prompt
+  history, a searchable personal prompt library, favourites, and app search.
+- **Video/audio filtering** — apps that only produce video/audio (or only accept
+  it) are hidden because Photoshop cannot place those results as layers.
+- **Local-first settings** — UI language, model choice, favourites and history
+  are stored in the UXP data folder.
 
 ## Updates
 
@@ -22,6 +46,51 @@ silently, so installation stays a user action. The in-panel check only reports t
 new version — Creative Cloud performs the actual install when you open the
 downloaded `.ccx`. There is no in-plugin update or self-uninstall API in UXP.
 
+## App catalog sync
+
+`featured-apps.json` is a static JSON file served from the `main` branch:
+
+```json
+{
+  "schema": 1,
+  "updated_at": "2026-10-26T13:13:20.948Z",
+  "source": "https://www.krea.ai/nodes?tab=apps",
+  "apps": [
+    {
+      "id": "…",
+      "name": "…",
+      "slug": "…",
+      "scope": "public",
+      "username": "…",
+      "description": "…",
+      "version": 1,
+      "node_app_version_id": "…",
+      "category": "video",
+      "example_outputs": ["…"]
+    }
+  ]
+}
+```
+
+The plugin only reads data — no remote code is executed. If the request fails or
+the JSON is invalid, it falls back to the last local cache and then to the built-in
+snapshot compiled into `assets/main.js`, so the Apps tab still works offline. The
+status line shows **Offline list** while a fallback is active.
+
+To publish a new catalog, edit `featured-apps.json`, update `updated_at`, and
+commit it to `main`. No new `.ccx` release is required. `category: "video"` marks
+known video/audio apps; schema inspection still catches anything the catalog
+misses.
+
+## Privacy and network access
+
+- The Krea API token is sent only to `api.krea.ai`.
+- Update and app-catalog requests go to `raw.githubusercontent.com` and never
+  include the token.
+- The token is stored locally in the UXP data folder (`token.json` plus the
+  available keychain/encrypted backup). **Settings → Reset all data** removes it
+  together with history, the prompt library and caches.
+
 ## Contact
 
 **About → Contact us** opens a Microsoft Teams chat with the author, prefilled
@@ -31,20 +100,25 @@ to Teams) must be available.
 ## Versioning
 
 Patch numbers stay single-digit for easy verbal reference:
-`2.3.4 → 2.3.5 → … → 2.3.9 → 2.4.0`. Do not use `2.3.10`.
+`2.3.5 → 2.3.6 → 2.3.7 → … → 2.3.9 → 2.4.0`. Do not use `2.3.10`.
 
 Release naming:
 
-- Tag: `v2.3.6`
-- Title: `Krea for Ps 2.3.6`
-- Asset: `Krea-for-Ps-2.3.6.ccx`
+- Tag: `v2.3.7`
+- Title: `Krea for Ps 2.3.7`
+- Asset: `Krea-for-Ps-2.3.7.ccx`
 
 ## Source layout
 
 ```
 manifest.json        UXP manifest
 index.html           panel shell (generated from _work/index.template.html)
+featured-apps.json   app catalog synced by the panel at runtime
 assets/              api / i18n / models / ps / store / main / css
 icons/               panel and UI PNGs
 update.json          update manifest served to installed copies
 ```
+
+`_work/` contains local build, packaging and test scripts and is not shipped in
+the `.ccx`.
+

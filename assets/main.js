@@ -28,7 +28,7 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.3.6";
+  var VERSION = "2.3.7";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
   /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
   var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
@@ -42,6 +42,13 @@
   var RELEASES_URL = REPO_URL + "/releases";
   var UPDATE_URL = "https://raw.githubusercontent.com/9Din/Krea-for-Ps/main/update.json";
   var UPDATE_TIMEOUT = 8000;
+  /* 官网精选 Apps 清单：仓库 main 分支的静态 JSON，官网新增/下架 App 时只需更新
+   * 这个文件，不必重新发 .ccx。清单只包含数据，不执行任何远端代码。
+   * 6 小时内复用本地缓存；手动点刷新则始终强制拉取最新版本。 */
+  var FEATURED_APPS_URL = "https://raw.githubusercontent.com/9Din/Krea-for-Ps/main/featured-apps.json";
+  var FEATURED_CACHE = "apps-featured.json";
+  var FEATURED_TIMEOUT = 8000;
+  var FEATURED_TTL = 6 * 60 * 60 * 1000;
   var APPS_CACHE = "apps-cache.json";
   var HISTORY_FILE = "history.json";
   var LIBRARY_FILE = "library.json";
@@ -107,6 +114,9 @@
     appsError: null,
     appsCursor: null,
     appsHasMore: false,
+    appsOffline: false,
+    appsSource: "builtin",      // builtin | cache | remote | workspace
+    appsManifestUpdatedAt: 0,
     appFilter: "all",           // all | fav | workspace
     pendingPrompt: null,
     appQuery: "",
@@ -2937,9 +2947,10 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
 
 
 /* ============================================================= */
-/* 官网精选 + 用户自有 App 白名单（2026-10-20 抓取自 krea.ai/nodes?tab=apps） */
+/* 官网精选 + 用户自有 App 离线兜底（2026-10-20 抓取自 krea.ai/nodes?tab=apps） */
 /* scope: public=官方精选, user=用户自己的；workspace 仍走 owner=workspace 实时拉取 */
-/* 说明：该清单来自官网列表页快照，官网新增/下架精选时需手动更新此表 */
+/* v2.3.7：在线时优先同步仓库根目录 featured-apps.json；这张表只在首次安装或
+ * 网络不可用时使用，官网新增/下架精选不需要再改这里、也不需要重新发版。 */
 var FEATURED_APPS = [
 {"id": "5e8b173e-e0ad-4823-9ae1-b888f03bce26", "name": "image prompting", "slug": "image-prompting", "scope": "user", "username": "terrificadvancedporpoise", "description": "", "node_app_version_id": "849893a2-7835-4405-89f5-13c624460f98", "version": 1, "example_outputs": []},
 {"id": "629d7742-70e8-4ed3-8d48-358f70a910e6", "name": "提取材质模板", "slug": "untitled", "scope": "user", "username": "terrificadvancedporpoise", "description": "照片提取实物纹理，输出**无缝平铺 Seamless Texture**，用于 3D 材质、贴图、设计背景。", "node_app_version_id": "ba28bd3b-c3b8-4759-b6b5-49eae11ba63a", "version": 1, "example_outputs": []},
@@ -3197,6 +3208,78 @@ if (ex && (typeof index !== "number" || index < 60)) thumb.src = ex;
     return false;
   }
 
+  /**
+   * 读取仓库 main 分支的精选 App 清单。
+   * 只解析数据，不执行远端代码；格式不对或为空时抛错，由 refreshApps 回退到缓存/内置表。
+   * 加时间戳绕过 raw.githubusercontent 的缓存，不调用 GitHub API，避免匿名限流。
+   */
+  async function fetchFeaturedManifest() {
+    // UXP / 测试环境不一定有 AbortController：有就用它中断请求，没有就靠
+    // Promise.race 超时，避免清单请求把启动流程挂住。
+    var ac = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = null;
+    var timeout = new Promise(function (resolve, reject) {
+      timer = setTimeout(function () {
+        if (ac) { try { ac.abort(); } catch (e) {} }
+        var timeoutErr = new Error("timeout");
+        timeoutErr.code = "timeout";
+        reject(timeoutErr);
+      }, FEATURED_TIMEOUT);
+    });
+    try {
+      var opts = {
+        method: "GET",
+        headers: { "Accept": "application/json" }
+      };
+      if (ac) opts.signal = ac.signal;
+      var res = await Promise.race([
+        fetch(FEATURED_APPS_URL + "?t=" + Date.now(), opts),
+        timeout
+      ]);
+      if (!res.ok) {
+        var httpErr = new Error("HTTP " + res.status);
+        httpErr.code = res.status === 404 ? "no_manifest" : "http_" + res.status;
+        throw httpErr;
+      }
+      var text = String(await res.text() || "").replace(/^\uFEFF/, "");
+      var data = JSON.parse(text);
+      var list = Array.isArray(data) ? data : (data && Array.isArray(data.apps) ? data.apps : null);
+      if (!list) {
+        var shapeErr = new Error("featured-apps.json 缺少 apps");
+        shapeErr.code = "bad_manifest";
+        throw shapeErr;
+      }
+      var items = [];
+      var seen = {};
+      for (var i = 0; i < list.length && items.length < 300; i++) {
+        var app = normalizeApp(list[i]);
+        if (!app || seen[app.id]) continue;
+        seen[app.id] = 1;
+        items.push(app);
+      }
+      if (!items.length) {
+        var emptyErr = new Error("featured-apps.json 没有有效 App");
+        emptyErr.code = "bad_manifest";
+        throw emptyErr;
+      }
+      var updatedAt = data && data.updated_at ? Date.parse(data.updated_at) : 0;
+      return {
+        items: items,
+        schema: (data && data.schema) || 1,
+        updatedAt: isNaN(updatedAt) ? 0 : updatedAt
+      };
+    } catch (e) {
+      if (e && (e.name === "AbortError" || /abort/i.test(String(e.message)))) {
+        var timeoutErr = new Error("timeout");
+        timeoutErr.code = "timeout";
+        throw timeoutErr;
+      }
+      throw e;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   function renderAppFilters() {
     var host = $("appFilters");
     if (!host) return;
@@ -3240,6 +3323,9 @@ var more = $("btnAppsMore");
     if (hidden > 0) {
       status.appendChild(mk("span", { class: "badge", text: T("apps.hiddenMedia", { n: hidden }), title: T("apps.hiddenMediaTip") }));
     }
+    if (st.appsOffline) {
+      status.appendChild(mk("span", { class: "badge warn", text: T("apps.offline"), title: T("apps.offlineTip") }));
+    }
     if (st.appFilter === "workspace") {
       status.appendChild(mk("span", { class: "badge", text: T("apps.filterWorkspace") }));
     }
@@ -3252,12 +3338,13 @@ var more = $("btnAppsMore");
 
   /**
    * 刷新 App 列表。
-   * 数据源策略（v2.0.18 起）：
+   * 数据源策略（v2.3.7）：
    *  - 工作区视图：实时拉 owner=workspace（用户/团队自建 App）；
-   *  - 全部 / 收藏视图：使用内置 FEATURED_APPS（官网精选 + 用户自有，来自
-   *    krea.ai/nodes?tab=apps 列表快照），不再请求 owner=all 的社区公开 App，
-   *    因为社区公开 App 在官网列表页不展示（只有 /nodes/app/{author}/{slug} 产品页）。
-   *  - 精选 App 的 schema / execute 走 node_app_version_id（last_version_id）补全。
+   *  - 全部 / 收藏视图：读取仓库 main 分支的 featured-apps.json（官网精选 +
+   *    用户自有）。启动时 6 小时内复用本地缓存，手动刷新强制以官网清单为准；
+   *    网络失败时依次回退到本地缓存、内置 FEATURED_APPS，列表不会变空。
+   *  - 精选 App 的 schema / execute 在打开时用 App ID 取最新定义，旧
+   *    node_app_version_id 只作为兼容回退。
    */
   async function refreshApps(interactive, append) {
     if (!API.hasToken()) { show("screenSetup"); return; }
@@ -3267,17 +3354,62 @@ var more = $("btnAppsMore");
       status.appendChild(mk("span", { text: T("apps.refreshing") }));
     }
     var owner = st.appFilter === "workspace" ? "workspace" : "featured";
-    if (!append) { st.appsCursor = null; st.apps = []; }
+    if (!append) st.appsCursor = null;
     try {
       var items = [];
       var hasMore = false;
+      var fetchedAt = Date.now();
+      var page = null;
       if (owner === "workspace") {
-var page = await API.listApps({ owner: "workspace", limit: append ? 100 : 40, cursor: append ? st.appsCursor : null });
+        page = await API.listApps({ owner: "workspace", limit: append ? 100 : 40, cursor: append ? st.appsCursor : null });
         items = (page && page.items) || [];
         hasMore = !!(page && page.next_cursor);
+        st.appsOffline = false;
+        st.appsSource = "workspace";
       } else {
-        // 全部 / 收藏：内置官网展示清单（精选 + 用户自有），社区公开 App 不再拉取
-        items = FEATURED_APPS.slice();
+        var cached = await S.readJson(FEATURED_CACHE, null);
+        var cacheItems = cached && Array.isArray(cached.items) && cached.items.length ? cached.items : null;
+        var cacheAge = cached ? Date.now() - (cached.savedAt || 0) : Infinity;
+        if (!interactive && cacheItems && cacheAge >= 0 && cacheAge < FEATURED_TTL) {
+          items = cacheItems.slice();
+          fetchedAt = cached.savedAt || 0;
+          st.appsSource = "cache";
+          st.appsOffline = false;
+          st.appsManifestUpdatedAt = cached.manifestUpdatedAt || 0;
+        } else {
+          try {
+            var manifest = await fetchFeaturedManifest();
+            items = manifest.items;
+            fetchedAt = Date.now();
+            st.appsSource = "remote";
+            st.appsOffline = false;
+            st.appsManifestUpdatedAt = manifest.updatedAt || fetchedAt;
+            try {
+              await S.writeJson(FEATURED_CACHE, {
+                items: items,
+                savedAt: fetchedAt,
+                source: "remote",
+                manifestUpdatedAt: st.appsManifestUpdatedAt
+              });
+            } catch (writeErr) {
+              // 缓存写失败不影响本次已经拿到的最新清单。
+              console.warn("[Krea for Ps] 保存精选 App 缓存失败", writeErr);
+            }
+          } catch (e) {
+            console.warn("[Krea for Ps] 同步官网精选 App 失败，使用缓存/内置清单", e);
+            if (cacheItems) {
+              items = cacheItems.slice();
+              fetchedAt = cached.savedAt || 0;
+              st.appsSource = "cache";
+            } else {
+              items = FEATURED_APPS.slice();
+              fetchedAt = 0;
+              st.appsSource = "builtin";
+            }
+            st.appsOffline = true;
+            if (interactive) toast(T("apps.offlineToast", { msg: errMsg(e) }), "error");
+          }
+        }
         hasMore = false;
       }
       var merged = append ? st.apps.concat(items) : items;
@@ -3287,11 +3419,13 @@ var page = await API.listApps({ owner: "workspace", limit: append ? 100 : 40, cu
         seen[a.id] = 1;
         return true;
       });
-      st.appsCursor = owner === "workspace" && page ? ((page && page.next_cursor) || null) : null;
+      st.appsCursor = owner === "workspace" && page ? (page.next_cursor || null) : null;
       st.appsHasMore = hasMore;
-      st.appsFetchedAt = Date.now();
+      st.appsFetchedAt = fetchedAt;
       st.appsError = null;
-      if (!append) await S.writeJson(APPS_CACHE, { items: items, savedAt: st.appsFetchedAt, owner: owner });
+      if (!append && owner === "workspace") {
+        await S.writeJson(APPS_CACHE, { items: items, savedAt: fetchedAt, owner: owner });
+      }
       renderApps();
     } catch (e) {
       st.appsError = T("apps.fetchFailed", { msg: errMsg(e) });
@@ -3301,22 +3435,53 @@ var page = await API.listApps({ owner: "workspace", limit: append ? 100 : 40, cu
   }
 
   async function loadAppCache() {
-    var cache = await S.readJson(APPS_CACHE, null);
-    if (cache && cache.items) {
-      // v2.0.18：旧缓存 owner=all 是社区公开 App（官网列表不展示），按新数据源策略重建；
-      // owner=featured / workspace 的缓存直接可用。
-      var raw = cache.owner === "featured" || cache.owner === "workspace"
-        ? cache.items
-        : FEATURED_APPS.slice();
-      st.apps = raw.map(normalizeApp).filter(Boolean);
-      st.appsFetchedAt = cache.savedAt || 0;
+    var caches = await Promise.all([
+      S.readJson(APPS_CACHE, null),
+      S.readJson(FEATURED_CACHE, null)
+    ]);
+    var cache = caches[0];
+    var featured = caches[1];
+    var currentOwner = st.appFilter === "workspace" ? "workspace" : "featured";
+    var raw = null;
+    var savedAt = 0;
+    var source = "builtin";
+
+    if (currentOwner === "workspace" && cache && cache.owner === "workspace" && Array.isArray(cache.items)) {
+      raw = cache.items;
+      savedAt = cache.savedAt || 0;
+      source = "workspace";
+    } else if (featured && Array.isArray(featured.items) && featured.items.length) {
+      raw = featured.items;
+      savedAt = featured.savedAt || 0;
+      source = "cache";
+    } else if (cache && cache.owner === "featured" && Array.isArray(cache.items) && cache.items.length) {
+      // v2.3.7 之前的精选缓存（当时还没有 apps-featured.json）。
+      raw = cache.items;
+      savedAt = cache.savedAt || 0;
+      source = "cache";
+    } else if (currentOwner === "workspace" && cache && Array.isArray(cache.items)) {
+      // 旧缓存没有 owner 字段时可能是工作区列表，先作为占位。
+      raw = cache.items;
+      savedAt = cache.savedAt || 0;
+      source = "workspace";
     }
+
+    st.apps = (raw || FEATURED_APPS).map(normalizeApp).filter(Boolean);
+    st.appsFetchedAt = savedAt;
+    st.appsSource = raw ? source : "builtin";
+    st.appsOffline = false;
+    if (featured && featured.manifestUpdatedAt) {
+      st.appsManifestUpdatedAt = featured.manifestUpdatedAt;
+    }
+
     var custom = await S.readJson("apps-custom.json", null);
     if (custom && Array.isArray(custom.items)) {
       // 旧版本会把打开过的官网精选 App 也写进 apps-custom.json；
-      // 它们在 FEATURED_APPS 里仍然存在，清掉重复副本即可（真正导入的 App 不受影响）。
+      // 只要它已出现在当前官网清单 / 内置表里，就清掉重复副本（真正导入的 App 不受影响）。
       var featuredIds = {};
-      FEATURED_APPS.forEach(function (a) { featuredIds[a.id] = 1; });
+      FEATURED_APPS.concat(st.apps).forEach(function (a) {
+        if (a && a.id) featuredIds[a.id] = 1;
+      });
       var cleaned = custom.items.filter(function (a) { return a && a.id && !featuredIds[a.id]; });
       st.customApps = cleaned.map(normalizeApp).filter(Boolean);
       if (cleaned.length !== custom.items.length) {
@@ -3344,15 +3509,20 @@ if (st.prefs.favorites && !st.prefs.pinned) st.prefs.pinned = st.prefs.favorites
     show("screenAppRun");
     $("appRunHint").textContent = T("common.loading");
 
-var def = app;
+    var def = app;
     if (!def.input_openapi_schema) {
-      var candidates = [app.node_app_version_id, app.id].filter(Boolean);
+      // v2.3.7：先按 App ID 取详情，服务端会返回最新 node_app_version_id；
+      // 旧版本 ID 只作为兼容回退，避免一直沿用列表快照里的旧 schema。
+      var candidates = [app.id, app.node_app_version_id].filter(function (id, idx, all) {
+        return id && all.indexOf(id) === idx;
+      });
       for (var ci = 0; ci < candidates.length && !def.input_openapi_schema; ci++) {
         try {
           var fetched = await API.getApp(candidates[ci]);
           var fetchedApp = normalizeApp(fetched);
           if (fetchedApp) {
-            // 详情接口可能只返回一个子集：保留列表里的 id / 版本 id，避免执行时找不到 App。
+            // 详情接口可能只返回一个子集：保留列表里的 id / source；
+            // node_app_version_id 以详情返回的最新值为准，缺失时才沿用列表快照。
             def = Object.assign({}, app, fetchedApp, { id: app.id, source: app.source });
             if (!def.node_app_version_id) def.node_app_version_id = app.node_app_version_id || null;
             // 只回填当前列表里的 schema（本次会话不再重复请求），
@@ -4054,6 +4224,7 @@ $("promptName").value = it ? libText(it.name) : "";
     var firstError = null;
     try { await S.clearToken(); } catch (e) { firstError = e; }
     await S.removeFile(APPS_CACHE);
+    await S.removeFile(FEATURED_CACHE);
     await S.removeFile("apps-custom.json");
     await S.removeFile(HISTORY_FILE);
     await S.removeFile(LIBRARY_FILE);
@@ -4077,6 +4248,9 @@ $("promptName").value = it ? libText(it.name) : "";
     st.customApps = [];
     st.appsFetchedAt = 0;
     st.appsError = null;
+    st.appsOffline = false;
+    st.appsSource = "builtin";
+    st.appsManifestUpdatedAt = 0;
     st.appsCursor = null;
     st.appsHasMore = false;
     st.history = [];
@@ -5306,13 +5480,17 @@ $("appFilters").addEventListener("click", function (ev) {
     });
     $("btnClearCache").addEventListener("click", async function () {
       try {
-        await S.writeJson(APPS_CACHE, { items: [], savedAt: 0 });
+        await S.removeFile(APPS_CACHE);
+        await S.removeFile(FEATURED_CACHE);
       } catch (e) {
         toast(T("err.generic", { msg: errMsg(e) }), "error");
         return;
       }
       st.apps = [];
       st.appsFetchedAt = 0;
+      st.appsOffline = false;
+      st.appsSource = "builtin";
+      st.appsManifestUpdatedAt = 0;
       renderApps();
       toast(T("settings.cacheCleared"), "ok");
     });
@@ -5684,6 +5862,9 @@ check("api.token", API.hasToken(), API.hasToken() ? "ok" : "not configured");
     mergeApps: mergeApps,
     filteredApps: filteredApps,
     isVideoApp: isVideoApp,
+    refreshApps: refreshApps,
+    loadAppCache: loadAppCache,
+    fetchFeaturedManifest: fetchFeaturedManifest,
     favorites: favorites,
     isFavorite: isFavorite,
     toggleFavorite: toggleFavorite,

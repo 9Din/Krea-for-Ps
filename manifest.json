@@ -1,7 +1,7 @@
 {
 	"id": "krea.ps.rebuild",
 	"name": "Krea for Ps",
-	"version": "2.3.6",
+	"version": "2.3.7",
 	"main": "index.html",
 	"manifestVersion": 5,
 	"host": {
