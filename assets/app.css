@@ -1108,7 +1108,8 @@ sp-action-button::part(button) {
 #screenSettings .card + .card { margin-top: 10px; }
 #screenSettings sp-checkbox,
 #screenSettings .k-check { margin-top: 6px; }
-/* 隐藏与显示：三个独立开关同一行排列；开关本身不画外围框。 */
+/* 隐藏与显示：三个独立开关同一行排列；方框由自定义控件绘制，
+   不再使用 UXP 复选框自带的 1px 描边（新旧 Spectrum / 无 Spectrum 环境一致）。 */
 #screenSettings .apps-filter-toggles {
   display: flex;
   flex-direction: row;
@@ -1118,18 +1119,72 @@ sp-action-button::part(button) {
   border: 0;
   background: transparent;
 }
-#screenSettings .apps-filter-toggles sp-checkbox,
-#screenSettings .apps-filter-toggles .k-check {
+#screenSettings .apps-filter-toggles .k-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--k-text);
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
 }
-#screenSettings .apps-filter-toggles sp-checkbox + sp-checkbox,
-#screenSettings .apps-filter-toggles .k-check + .k-check {
+#screenSettings .apps-filter-toggles .k-toggle + .k-toggle {
   margin-top: 0;
   margin-left: 14px;
+}
+/* 原生 checkbox 只保留语义和键盘行为，视觉完全由 .k-toggle-box 承担。
+   透明 input 铺满整个标签，保证点方框或文字都能切换。 */
+#screenSettings .apps-filter-toggles .k-toggle input[type='checkbox'] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  z-index: 1;
+  cursor: pointer;
+}
+#screenSettings .apps-filter-toggles .k-toggle-box {
+  position: relative;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--spectrum-alias-border-color, #4a4a4a);
+}
+#screenSettings .apps-filter-toggles .k-toggle input:checked + .k-toggle-box {
+  background: var(--spectrum-gray-500, var(--spectrum-global-color-gray-500, #8a8a8a));
+}
+#screenSettings .apps-filter-toggles .k-toggle-box::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 3px;
+  height: 7px;
+  border: solid #1e1e1e;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  opacity: 0;
+}
+#screenSettings .apps-filter-toggles .k-toggle input:checked + .k-toggle-box::after {
+  opacity: 1;
+}
+#screenSettings .apps-filter-toggles .k-toggle input:focus-visible + .k-toggle-box {
+  outline: 1px solid var(--k-blue);
+  outline-offset: 1px;
 }
 
 

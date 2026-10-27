@@ -528,9 +528,21 @@
 							<sp-heading size="s" data-i18n="settings.apps">隐藏与显示</sp-heading>
 						</div>
 						<div class="apps-filter-toggles">
-							<sp-checkbox id="hideAppsAll" data-i18n="settings.hideAppsAll">隐藏「全部」</sp-checkbox>
-							<sp-checkbox id="hideAppsFav" data-i18n="settings.hideAppsFav">隐藏「收藏夹」</sp-checkbox>
-							<sp-checkbox id="hideAssets" data-i18n="settings.hideAssets">隐藏「资产」</sp-checkbox>
+							<label class="k-toggle">
+								<input type="checkbox" id="hideAppsAll">
+								<span class="k-toggle-box" aria-hidden="true"></span>
+								<span data-i18n="settings.hideAppsAll">隐藏「全部」</span>
+							</label>
+							<label class="k-toggle">
+								<input type="checkbox" id="hideAppsFav">
+								<span class="k-toggle-box" aria-hidden="true"></span>
+								<span data-i18n="settings.hideAppsFav">隐藏「收藏夹」</span>
+							</label>
+							<label class="k-toggle">
+								<input type="checkbox" id="hideAssets">
+								<span class="k-toggle-box" aria-hidden="true"></span>
+								<span data-i18n="settings.hideAssets">隐藏「资产」</span>
+							</label>
 						</div>
 						<sp-body class="tiny muted wrap" style="margin-top:4px;" data-i18n="settings.hideAppsFiltersHint">
 							控制 Apps 页面筛选栏和顶部「资产」页签的显示。
