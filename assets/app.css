@@ -1164,7 +1164,7 @@ sp-action-button::part(button) {
   border-radius: 3px;
   background: var(--spectrum-alias-border-color, #4a4a4a);
 }
-#screenSettings .apps-filter-toggles .k-toggle input:checked + .k-toggle-box {
+#screenSettings .apps-filter-toggles .k-toggle input[checked] + .k-toggle-box {
   background: var(--spectrum-gray-500, var(--spectrum-global-color-gray-500, #8a8a8a));
 }
 #screenSettings .apps-filter-toggles .k-toggle-box::after {
@@ -1179,10 +1179,10 @@ sp-action-button::part(button) {
   transform: rotate(45deg);
   opacity: 0;
 }
-#screenSettings .apps-filter-toggles .k-toggle input:checked + .k-toggle-box::after {
+#screenSettings .apps-filter-toggles .k-toggle input[checked] + .k-toggle-box::after {
   opacity: 1;
 }
-#screenSettings .apps-filter-toggles .k-toggle input:focus-visible + .k-toggle-box {
+#screenSettings .apps-filter-toggles .k-toggle input:focus + .k-toggle-box {
   outline: 1px solid var(--k-blue);
   outline-offset: 1px;
 }

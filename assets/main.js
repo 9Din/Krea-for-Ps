@@ -5480,6 +5480,10 @@ $("appFilters").addEventListener("click", function (ev) {
         if (!box) return;
         box.addEventListener("change", function () {
           var hide = !!box.checked;
+          try {
+            if (hide) box.setAttribute("checked", "");
+            else box.removeAttribute("checked");
+          } catch (e) { /* ignore */ }
           st[cfg.key] = hide;
           st.prefs[cfg.key] = hide;
           var switched = !!(cfg.filter && hide && st.appFilter === cfg.filter);
