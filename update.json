@@ -1,6 +1,6 @@
 {
-  "version": "2.3.9",
-  "notes": "界面按 Krea 原始风格重绘：按钮、筛选 Chips、搜索框、下拉框和选择面板统一为固定中性色并去掉操作按钮外框；深浅色主题分别使用对应的深色/浅色图标，切换 PS 主题后自动刷新；设置页新增「隐藏与显示」，「隐藏全部」「隐藏收藏夹」可独立开关；面板背景继续跟随 Photoshop 主题；关于页将插件简介移到快速开始上方并移除重复的名称/版本块；对话页仅保留 Krea Agent；移除 Apps 的 JSON/ID 文件导入入口；顶栏更新为 Krea Residential Tools。",
-  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.3.9/Krea-for-Ps-2.3.9.ccx",
-  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.3.9"
+  "version": "2.4.0",
+  "notes": "界面配色回退到 2.3.8：面板、卡片、输入框、按钮和筛选 Chips 重新跟随 Photoshop 深浅色主题；设置 →「隐藏与显示」新增「隐藏资产」开关，可隐藏顶部「资产」页签和整个资产面板，隐藏后所有入口自动回落到 Apps 页；图标主题切换和隐藏全部/收藏夹开关保持不变。",
+  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.4.0/Krea-for-Ps-2.4.0.ccx",
+  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.4.0"
 }

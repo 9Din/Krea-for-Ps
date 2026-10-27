@@ -378,9 +378,10 @@ window.KREA_I18N = (function () {
     "settings.apps": ["隐藏与显示", "Visibility"],
     "settings.hideAppsAll": ["隐藏「全部」", "Hide All"],
     "settings.hideAppsFav": ["隐藏「收藏夹」", "Hide Favourites"],
+    "settings.hideAssets": ["隐藏「资产」", "Hide Assets"],
     "settings.hideAppsFiltersHint": [
-      "控制 Apps 页面筛选栏中「全部」与「收藏夹」的显示。",
-      "Show or hide the All and Favourites filters on the Apps page."
+      "控制 Apps 页面筛选栏和顶部「资产」页签的显示。",
+      "Show or hide the Apps filters and the Assets tab."
     ],
     "settings.update": ["插件更新", "Plugin updates"],
     "settings.checkUpdate": ["检测更新", "Check for updates"],

@@ -28,7 +28,7 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.3.9";
+  var VERSION = "2.4.0";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
   /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
   var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
@@ -141,6 +141,7 @@
     appFilter: "all",           // all | fav | workspace
     hideAppsAll: false,         // true = 隐藏 Apps 的「全部」筛选
     hideAppsFav: false,         // true = 隐藏 Apps 的「收藏夹」筛选
+    hideAssets: false,          // true = 隐藏顶部「资产」页签与整个资产页
     pendingPrompt: null,
     appQuery: "",
     currentApp: null,
@@ -1066,9 +1067,22 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     $("body").scrollTop = 0;
   }
 
+  /** 隐藏「资产」时同时收起顶部页签；若当前正停在资产页，回落到 Apps。 */
+  function applyAssetsVisibility() {
+    var hidden = !!st.hideAssets;
+    var tab = $("tabAssets");
+    if (tab) {
+      tab.classList.toggle("hidden", hidden);
+      try { tab.setAttribute("aria-hidden", hidden ? "true" : "false"); } catch (e) { /* ignore */ }
+    }
+    if (hidden && st.screen === "screenAssets") showTab("apps");
+  }
+
   function showTab(tab) {
     // 兼容老用户配置里残留的 "image" / "banana"
     if (LEGACY_TAB_ALIAS[tab]) tab = LEGACY_TAB_ALIAS[tab];
+    // 「资产」被隐藏时不允许任何路径进入资产页（包括旧偏好、设置返回和外部调用）。
+    if (tab === "assets" && st.hideAssets) tab = "apps";
     st.tab = tab;
     S.setPrefs({ tab: tab });
     if (tab === "apps") {
@@ -4297,6 +4311,7 @@ $("promptName").value = it ? libText(it.name) : "";
     st.appFilter = "all";
     st.hideAppsAll = false;
     st.hideAppsFav = false;
+    st.hideAssets = false;
     st.model = MODELS.defaultModel;
     st.apps = [];
     st.customApps = [];
@@ -4331,6 +4346,7 @@ $("promptName").value = it ? libText(it.name) : "";
     st.token = null;
     setupReturn = "screenSettings";
     setupCanReturn = false;
+    try { applyAssetsVisibility(); } catch (e) { /* ignore */ }
     updateSetupBadge();
     setSetupNotice(T("setup.notTested"), "muted");
   }
@@ -4341,11 +4357,11 @@ $("promptName").value = it ? libText(it.name) : "";
     $("setTokenBadge").className = "badge " + (API.hasToken() ? "ok" : "err");
     updateSetupBadge();
 
-    var hideIds = ["hideAppsAll", "hideAppsFav"];
+    var hideIds = ["hideAppsAll", "hideAppsFav", "hideAssets"];
     for (var hi = 0; hi < hideIds.length; hi++) {
       var hideToggle = $(hideIds[hi]);
       if (!hideToggle) continue;
-      var hide = hideIds[hi] === "hideAppsAll" ? !!st.hideAppsAll : !!st.hideAppsFav;
+      var hide = !!st[hideIds[hi]];
       try { hideToggle.checked = hide; } catch (e) { /* ignore */ }
       try {
         if (hide) hideToggle.setAttribute("checked", "");
@@ -5455,7 +5471,8 @@ $("appFilters").addEventListener("click", function (ev) {
     $("btnAppsRefresh").addEventListener("click", function () { refreshApps(true); });
     var hideToggles = [
       { id: "hideAppsAll", key: "hideAppsAll", filter: "all" },
-      { id: "hideAppsFav", key: "hideAppsFav", filter: "fav" }
+      { id: "hideAppsFav", key: "hideAppsFav", filter: "fav" },
+      { id: "hideAssets", key: "hideAssets" }
     ];
     for (var hti = 0; hti < hideToggles.length; hti++) {
       (function (cfg) {
@@ -5465,13 +5482,14 @@ $("appFilters").addEventListener("click", function (ev) {
           var hide = !!box.checked;
           st[cfg.key] = hide;
           st.prefs[cfg.key] = hide;
-          var switched = hide && st.appFilter === cfg.filter;
+          var switched = !!(cfg.filter && hide && st.appFilter === cfg.filter);
           if (switched) st.appFilter = "workspace";
           var patch = { hideAppsFilters: false };
           patch[cfg.key] = hide;
           if (switched) patch.appFilter = "workspace";
           S.setPrefs(patch);
-          renderApps();
+          if (cfg.key === "hideAssets") applyAssetsVisibility();
+          else renderApps();
           if (switched && API.hasToken()) refreshApps(true);
         });
       })(hideToggles[hti]);
@@ -5780,6 +5798,7 @@ st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
     var legacyHideFilters = !!st.prefs.hideAppsFilters;
     st.hideAppsAll = !!st.prefs.hideAppsAll;
     st.hideAppsFav = !!st.prefs.hideAppsFav;
+    st.hideAssets = !!st.prefs.hideAssets;
     // 旧版只有一个「隐藏全部和收藏夹」开关：首次升级时迁移为两个独立开关。
     if (legacyHideFilters && !st.hideAppsAll && !st.hideAppsFav) {
       st.hideAppsAll = true;
@@ -5843,6 +5862,7 @@ st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
     try { renderHistory(); } catch (e) { /* ignore */ }
     try { renderLibrary(); } catch (e) { /* ignore */ }
     try { await renderSettings(); } catch (e) { /* ignore */ }
+    try { applyAssetsVisibility(); } catch (e) { /* ignore */ }
     try { renderAbout(); } catch (e) { /* ignore */ }
     try { updateHeader(); } catch (e) { /* ignore */ }
 
@@ -5886,7 +5906,7 @@ var ids = Object.keys(MODELS.models);
       "generateBtn", "error-message", "featherEdgesBtn", "featherAmountInput", "featherAmountLabel",
       "featherMinusBtn", "featherPlusBtn",
       "appFilters", "appsList", "btnAppsSearchClear", "btnRunApp", "appRunRecovery", "footerAbout", "footerActions",
-      "hideAppsAll", "hideAppsFav",
+      "hideAppsAll", "hideAppsFav", "hideAssets",
       "btnSavePrompt", "exportResult", "exportResultTitle", "exportResultPath", "exportResultHint",
       "btnExportFolder", "btnExportClose",
       "chatPrompt", "chatSendBtn", "chatStream", "chatSourceThumb", "chatBtnPick", "chatClearBtn",

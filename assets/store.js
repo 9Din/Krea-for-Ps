@@ -700,6 +700,7 @@ window.KREA_STORE = (function () {
     appFilter: "all",
     hideAppsAll: false,
     hideAppsFav: false,
+    hideAssets: false,
     hideAppsFilters: false, // 旧版单一开关，仅用于升级迁移
     agentModel: ""
   };

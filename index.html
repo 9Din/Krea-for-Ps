@@ -10,7 +10,7 @@
 	<body>
 		<div id="app">
 			<!-- 版本戳：由构建脚本写入，main.js 启动时会和自身 VERSION 比对 -->
-			<div id="buildStamp" hidden data-version="2.3.9">
+			<div id="buildStamp" hidden data-version="2.4.0">
 			</div>
 			<!-- ============================ 顶部品牌栏 ============================ -->
 			<header class="header">
@@ -530,9 +530,10 @@
 						<div class="apps-filter-toggles">
 							<sp-checkbox id="hideAppsAll" data-i18n="settings.hideAppsAll">隐藏「全部」</sp-checkbox>
 							<sp-checkbox id="hideAppsFav" data-i18n="settings.hideAppsFav">隐藏「收藏夹」</sp-checkbox>
+							<sp-checkbox id="hideAssets" data-i18n="settings.hideAssets">隐藏「资产」</sp-checkbox>
 						</div>
 						<sp-body class="tiny muted wrap" style="margin-top:4px;" data-i18n="settings.hideAppsFiltersHint">
-							控制 Apps 页面筛选栏中「全部」与「收藏夹」的显示。
+							控制 Apps 页面筛选栏和顶部「资产」页签的显示。
 						</sp-body>
 					</div>
 					<div class="card tight">
