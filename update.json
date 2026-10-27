@@ -1,0 +1,6 @@
+{
+  "version": "2.3.9",
+  "notes": "设置页的 Apps 页面新增「隐藏全部」「隐藏收藏夹」两个独立开关，可自由选择；面板配色改为跟随 Photoshop 浅色/深色主题；关于页将插件简介移到快速开始上方并移除重复的名称/版本块；对话页仅保留 Krea Agent；移除 Apps 的 JSON/ID 文件导入入口；顶栏更新为 Krea Residential Tools。",
+  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.3.9/Krea-for-Ps-2.3.9.ccx",
+  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.3.9"
+}
