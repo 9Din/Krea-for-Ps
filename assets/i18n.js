@@ -58,19 +58,12 @@ window.KREA_I18N = (function () {
     "assets.status.failed": ["失败", "Failed"],
     "assets.status.cancelled": ["已取消", "Cancelled"],
     "assets.status.running": ["进行中", "Running"],
-    "chat.empty": ["输入提示词，生成结果会按时间顺序出现在这里。", "Type a prompt — results will appear here in order."],
-    "chat.placeholder": ["描述你想生成的画面…", "Describe what you want to generate…"],
     "chat.send": ["发送", "Send"],
-    "chat.place": ["置入 PS", "Place to PS"],
-    "chat.placeNewDoc": ["置入新画布", "New canvas"],
-    "chat.delete": ["删除", "Delete"],
     "chat.clear": ["清空对话", "Clear chat"],
     "chat.clearConfirm": ["确定清空全部对话记录、输入内容和上传图片？", "Clear all messages, the prompt, and the uploaded image?"],
     "chat.upload": ["上传图片", "Upload image"],
     "chat.useSelection": ["当前选区", "Use selection"],
     "chat.needSource": ["请先创建选区，或上传一张图片。", "Create a selection first, or upload an image."],
-    "chat.modeImage": ["图像", "Image"],
-    "chat.modeAgent": ["AI 对话", "AI chat"],
     "chat.agentEmpty": ["和 Krea Agent 对话、分析图片，或让它帮你写提示词。", "Chat with Krea Agent, analyse an image, or ask it to write a prompt."],
     "chat.agentPlaceholder": ["问点什么，或让我帮你写提示词…", "Ask anything, or ask me to write a prompt…"],
     "chat.agentAuto": ["自动选择（推荐）", "Auto (recommended)"],
@@ -97,7 +90,7 @@ window.KREA_I18N = (function () {
     "chat.agentAttachmentMissing": ["Agent 找不到附件图片，请重新上传。", "The Agent could not find the attached image. Upload it again."],
     "chat.agentModelFallback": ["该模型不在当前套餐内，已切回「自动选择」。请重新发送。", "That model is not included in your plan. Switched back to Auto; send again."],
     "chat.agentSessionBusy": ["上一轮仍在生成，稍后再试。", "The previous turn is still generating; try again shortly."],
-    "header.tagline": ["Generative Fill · HBA", "Generative Fill · HBA"],
+    "header.tagline": ["AI Tools for Residential Design · HBA", "AI Tools for Residential Design · HBA"],
 
     /* ------------------------------------------------------------- 密钥 */
     "setup.title": ["连接 Krea API", "Connect to Krea"],
@@ -162,17 +155,6 @@ window.KREA_I18N = (function () {
     "apps.version": ["v{version}", "v{version}"],
     "apps.noSchema": ["该 App 没有提供表单结构，将以空参数运行。", "This app exposes no input schema; it will run with empty parameters."],
     "apps.captureHint": ["图片不会自动抓取；请在图片字段中点「使用当前选区」或「选择文件」。", "Images are not captured automatically. Use \"Use selection\" or \"Choose file\" in the image field."],
-    "apps.importTitle": ["导入 App", "Import app"],
-    "apps.importAction": ["导入", "Import"],
-    "apps.importFile": ["导入文件", "Import file"],
-    "apps.importHint": ["支持三种方式：① 直接粘贴 App ID 或 Krea 分享链接，插件会自动拉取表单结构；② 粘贴 App 定义 JSON；③ 从文件导入。", "Three ways: (1) paste an app ID or Krea share link and the form schema is fetched automatically; (2) paste an app definition JSON; (3) import from a file."],
-    "apps.importPlaceholder": ["App ID / 分享链接 / {\"id\":\"...\",\"name\":\"...\",\"inputs\":[...]}", "App ID / share link / {\"id\":\"...\",\"name\":\"...\",\"inputs\":[...]}"],
-    "apps.importNeedText": ["请输入 App ID / 链接 / JSON", "Enter an app ID, link or JSON"],
-    "apps.importOk": ["已导入：{name}", "Imported: {name}"],
-    "apps.importFetchFailed": ["拉取 App 定义失败：{msg}", "Could not fetch the app definition: {msg}"],
-    "apps.importBadJson": ["JSON 解析失败：{msg}", "Invalid JSON: {msg}"],
-    "apps.importEmptyFile": ["文件内容为空", "The file is empty"],
-    "apps.importRunning": ["正在拉取 App…", "Fetching app…"],
 
     /* ------------------------------------------------------------- 生成 */
     "gen.prompt": ["提示词:", "Prompt:"],
@@ -289,7 +271,6 @@ window.KREA_I18N = (function () {
 
     /* ------------------------------------------------------------- 关于 */
     "about.title": ["关于", "About"],
-    "about.version": ["当前版本", "Current version"],
     "about.contact": ["联系我们", "Contact us"],
     "about.contactTopic": ["Krea for Ps 插件咨询", "Krea for Ps plugin enquiry"],
     "about.contactMessage": [
@@ -335,13 +316,13 @@ window.KREA_I18N = (function () {
     ],
     "about.fn.modelsTitle": ["模型", "Models"],
     "about.fn.modelsBody": [
-      "• 内置 44 个模型，按厂商分组：Krea 2 Medium / Large / Turbo、Krea 3；Google Nano Banana 系列；OpenAI GPT-Image 系列；Flux 1.1 / Kontext；Seedream / Seededit；Ideogram、Topaz、Magnific 等。\n• 覆盖文生图、图生图、局部重绘、放大 / 增强等场景。\n• 「对话」页聚焦 Krea 自研与 Google Nano Banana 模型，自动按当前选区比例生成，适合连续出图和改图。\n• 模型参数由 Krea 智能填充，无需逐个设置 seed、步数等高级参数。",
-      "• 44 built-in models grouped by vendor: Krea 2 Medium / Large / Turbo, Krea 3; Google Nano Banana; OpenAI GPT-Image; Flux 1.1 / Kontext; Seedream / Seededit; Ideogram, Topaz, Magnific and more.\n• Covers text-to-image, image-to-image, inpainting, upscale / enhance and more.\n• The Chat tab focuses on Krea and Google Nano Banana models and follows the current selection ratio for fast iterative generation and editing.\n• Model parameters are filled in by Krea, so you do not need to tune seed, steps and other advanced fields."
+      "• 内置 44 个模型，按厂商分组：Krea 2 Medium / Large / Turbo、Krea 3；Google Nano Banana 系列；OpenAI GPT-Image 系列；Flux 1.1 / Kontext；Seedream / Seededit；Ideogram、Topaz、Magnific 等。\n• 覆盖文生图、图生图、局部重绘、放大 / 增强等场景。\n• 「对话」页使用 Krea Agent，可分析图片、写提示词并继续多轮对话。\n• 模型参数由 Krea 智能填充，无需逐个设置 seed、步数等高级参数。",
+      "• 44 built-in models grouped by vendor: Krea 2 Medium / Large / Turbo, Krea 3; Google Nano Banana; OpenAI GPT-Image; Flux 1.1 / Kontext; Seedream / Seededit; Ideogram, Topaz, Magnific and more.\n• Covers text-to-image, image-to-image, inpainting, upscale / enhance and more.\n• The Chat tab uses Krea Agent to analyse images, write prompts and continue multi-turn conversations.\n• Model parameters are filled in by Krea, so you do not need to tune seed, steps and other advanced fields."
     ],
     "about.fn.outputTitle": ["输出与落位", "Output & placement"],
     "about.fn.outputBody": [
-      "• 生成页两种输出方式：插入为新图层 / 替换原图层；对话与 App 结果还可置入新画布。\n• 结果自动缩放到选区大小并精确落位；替换模式只覆盖选区，选区外像素保留。\n• 生成后可对选区边缘执行羽化，羽化量可调。",
-      "• The Generate page has two output modes: insert as a new layer / replace the original layer; Chat and App results can also be placed on a new canvas.\n• Results are scaled to the selection and placed precisely; replace mode only covers the selection and keeps pixels outside it.\n• Feather the selection edge after generation with an adjustable amount."
+      "• 生成页两种输出方式：插入为新图层 / 替换原图层；App 结果还可置入新画布。\n• 结果自动缩放到选区大小并精确落位；替换模式只覆盖选区，选区外像素保留。\n• 生成后可对选区边缘执行羽化，羽化量可调。",
+      "• The Generate page has two output modes: insert as a new layer / replace the original layer; App results can also be placed on a new canvas.\n• Results are scaled to the selection and placed precisely; replace mode only covers the selection and keeps pixels outside it.\n• Feather the selection edge after generation with an adjustable amount."
     ],
     "about.fn.promptTitle": ["提示词与参考图", "Prompts & references"],
     "about.fn.promptBody": [
@@ -350,8 +331,8 @@ window.KREA_I18N = (function () {
     ],
     "about.fn.appsTitle": ["Apps 工作流", "Apps workflows"],
     "about.fn.appsBody": [
-      "• 直接运行 Krea Node Apps：浏览工作区 / 公开 App，搜索、收藏、置顶。\n• 按 App 的输入 Schema 自动生成表单，支持文本、数字、滑杆、下拉、图片与多图。\n• 可通过 App ID、分享链接、JSON 或文件导入 App；视频结果自动在浏览器打开。",
-      "• Run Krea Node Apps directly: browse workspace / public apps, search, favourite and pin.\n• Forms are generated from each app's input schema, including text, number, slider, select, image and multi-image fields.\n• Import apps by ID, share link, JSON or file; video results open in your browser."
+      "• 直接运行 Krea Node Apps：浏览工作区 / 公开 App，搜索、收藏、置顶。\n• 按 App 的输入 Schema 自动生成表单，支持文本、数字、滑杆、下拉、图片与多图。\n• 视频结果自动在浏览器打开。",
+      "• Run Krea Node Apps directly: browse workspace / public apps, search, favourite and pin.\n• Forms are generated from each app's input schema, including text, number, slider, select, image and multi-image fields.\n• Video results open in your browser."
     ],
     "about.quickStartIntro": ["首次使用按下面 5 步完成；之后打开面板即可直接生成。", "Follow these 5 steps for first-time setup; after that the panel is ready to generate."],
     "about.step1Title": ["获取 API Token", "Get an API Token"],
@@ -363,7 +344,7 @@ window.KREA_I18N = (function () {
     "about.step4Title": ["选择模型与提示词", "Choose a model and prompt"],
     "about.step4Body": ["在模型选择器里按厂商挑选模型；输入提示词。图生图固定使用 0.5 的编辑强度，无需额外设置。", "Pick a model by vendor and write a prompt. Image-to-image uses a fixed 0.5 edit strength; no extra setup is needed."],
     "about.step5Title": ["生成与微调", "Generate and refine"],
-    "about.step5Body": ["选择输出方式（插入为新图层 / 替换原图层），点击「生成」。结果会自动落位；可用「羽化边缘」、提示词历史与词库继续调整。对话和 App 结果还可置入新画布。", "Choose the output mode (new layer / replace original layer) and click Generate. The result is placed automatically; refine it with Feather edges, prompt history and the library. Chat and App results can also be placed on a new canvas."],
+    "about.step5Body": ["选择输出方式（插入为新图层 / 替换原图层），点击「生成」。结果会自动落位；可用「羽化边缘」、提示词历史与词库继续调整。App 结果还可置入新画布。", "Choose the output mode (new layer / replace original layer) and click Generate. The result is placed automatically; refine it with Feather edges, prompt history and the library. App results can also be placed on a new canvas."],
     "about.quickStartTip": ["小贴士：首次使用前请确认 Token 有效；生成失败时先检查网络与 Token。大图或高分辨率模型可能需要更长时间，可在进度浮层中取消。", "Tip: make sure the token is valid before the first run. If generation fails, check the network and token first. Large images or high-resolution models may take longer; you can cancel from the progress overlay."],
     "about.fn.securityTitle": ["安全与设置", "Security & settings"],
     "about.fn.securityBody": [
@@ -394,6 +375,10 @@ window.KREA_I18N = (function () {
     "settings.resetConfirm": ["将清除 Token、App 缓存、历史、自定义词库和缩略图缓存。确定吗？", "This clears the token, app cache, history, your custom library and the thumbnail cache. Continue?"],
     "settings.resetDone": ["已重置全部数据", "All data cleared"],
     "settings.cacheCleared": ["App 缓存已清空", "App cache cleared"],
+    "settings.apps": ["Apps 页面", "Apps page"],
+    "settings.hideAppsAll": ["隐藏「全部」", "Hide All"],
+    "settings.hideAppsFav": ["隐藏「收藏夹」", "Hide Favourites"],
+    "settings.hideAppsFiltersHint": ["隐藏或显示Apps", "Show or hide Apps"],
     "settings.update": ["插件更新", "Plugin updates"],
     "settings.checkUpdate": ["检测更新", "Check for updates"],
     "settings.checkingUpdate": ["正在检测更新…", "Checking for updates…"],

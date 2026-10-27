@@ -29,9 +29,8 @@ Requires Photoshop 22.5+ (UXP).
 - **Generate** — 44 image models grouped by task, prompt presets, reference
   images, selection-aware layer sampling, feathering, and new-layer/replace-layer
   output.
-- **Chat** — two modes in one compact stream: iterative image generation, and
-  **AI chat** with Krea Agent. In AI chat you can attach the current selection or
-  an uploaded image, ask the Agent to analyse it, write prompts, or continue a
+- **Chat** — **AI chat** with Krea Agent. Attach the current selection or an
+  uploaded image, ask the Agent to analyse it, write prompts, or continue a
   multi-turn conversation. Replies can be copied or sent straight to the Generate
   prompt. Agent defaults to Auto; a documented LLM can be pinned from the model
   picker.
@@ -39,8 +38,10 @@ Requires Photoshop 22.5+ (UXP).
   history, a searchable personal prompt library, favourites, and app search.
 - **Video/audio filtering** — apps that only produce video/audio (or only accept
   it) are hidden because Photoshop cannot place those results as layers.
-- **Local-first settings** — UI language, model choice, favourites and history
-  are stored in the UXP data folder.
+- **Local-first settings** — UI language, model choice, favourites, the Apps
+  filter visibility and history are stored in the UXP data folder. Settings can
+  hide **All** and/or **Favourites** independently, and the panel follows the
+  Photoshop light/dark theme.
 
 ## Updates
 

@@ -698,7 +698,9 @@ window.KREA_STORE = (function () {
     sampling: "visible",
     feather: 0,
     appFilter: "all",
-    chatMode: "image",
+    hideAppsAll: false,
+    hideAppsFav: false,
+    hideAppsFilters: false, // 旧版单一开关，仅用于升级迁移
     agentModel: ""
   };
 

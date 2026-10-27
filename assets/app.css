@@ -9,19 +9,25 @@
 
 /* ---------------------------------------------------------------- 基础主题 */
 :root {
-  --k-bg: var(--spectrum-alias-background-color-default, #232323);
-  --k-bg-2: var(--spectrum-alias-background-color-secondary, #2b2b2b);
+  /* PS / UXP 主题变量优先；后面的深色值只用于极旧版本 UXP 的兜底。
+     浅色主题由 JS 写入 <html data-theme="light">，见下方覆盖。 */
+  --k-bg: var(--uxp-host-background-color, var(--spectrum-alias-background-color-default, #232323));
+  --k-bg-2: var(--spectrum-alias-background-color-secondary, var(--uxp-host-widget-background-color, #2b2b2b));
   --k-bg-3: var(--spectrum-alias-background-color-tertiary, #333);
-  --k-border: var(--spectrum-alias-border-color, #4a4a4a);
+  --k-border: var(--uxp-host-border-color, var(--spectrum-alias-border-color, #4a4a4a));
   --k-border-2: var(--spectrum-alias-border-color-secondary, #3a3a3a);
   /* 操作按钮不画描边，靠填充色和文字层级区分；输入框 / 下拉框仍用 --k-border。 */
   --k-btn-border: transparent;
-  --k-text: var(--spectrum-alias-text-color, #e1e1e1);
+  --k-text: var(--uxp-host-text-color, var(--spectrum-alias-text-color, #e1e1e1));
   --k-text-dim: var(--spectrum-alias-text-color-disabled, #909090);
   --k-blue: #1473e6;
   --k-green: #2d9d78;
   --k-red: #d7373f;
   --k-orange: #e68619;
+  --k-ok-text: #a9e5cf;
+  --k-err-text: #ffb4b4;
+  --k-warn-text: #ffd9a0;
+  --k-sel-bg: rgba(38, 128, 235, .18);
   --k-radius: 5px;
   --k-gap: 6px;
   /* 图标按钮：各容器用 --k-icon-btn-size 同时控制按钮和图标（图标 = 按钮 × 0.6）。
@@ -32,6 +38,21 @@
   --k-btn-height: 20px;
   --k-btn-font: 11px;
   --k-ghost-size: 22px;
+}
+
+/* 浅色 PS 主题：同一套结构，只替换中性色，保持与 Photoshop 面板一致。 */
+html[data-theme="light"] {
+  --k-bg: var(--uxp-host-background-color, var(--spectrum-alias-background-color-default, #f2f2f2));
+  --k-bg-2: var(--spectrum-alias-background-color-secondary, var(--uxp-host-widget-background-color, #e9e9e9));
+  --k-bg-3: var(--spectrum-alias-background-color-tertiary, #dedede);
+  --k-border: var(--uxp-host-border-color, var(--spectrum-alias-border-color, #b6b6b6));
+  --k-border-2: var(--spectrum-alias-border-color-secondary, #cfcfcf);
+  --k-text: var(--uxp-host-text-color, var(--spectrum-alias-text-color, #1f1f1f));
+  --k-text-dim: var(--spectrum-alias-text-color-disabled, #6b6b6b);
+  --k-ok-text: #1f6b52;
+  --k-err-text: #a4262c;
+  --k-warn-text: #8a4b00;
+  --k-sel-bg: rgba(20, 115, 230, .12);
 }
 
 * { box-sizing: border-box; }
@@ -60,7 +81,7 @@ sp-action-button::part(button) { cursor: pointer; }
   flex: 0 0 auto;
   margin: 8px 12px 0;
   border-color: var(--k-red);
-  color: #ffb4b4;
+  color: var(--k-err-text);
   background: rgba(215, 55, 63, .12);
   white-space: normal;
 }
@@ -442,7 +463,7 @@ sp-action-button::part(button) { min-width: 0; }
   white-space: nowrap;
 }
 .picker-item:hover { background: var(--k-bg-3); border-color: var(--k-border-2); }
-.picker-item.sel { background: rgba(38, 128, 235, .18); border-color: var(--k-blue); }
+.picker-item.sel { background: var(--k-sel-bg); border-color: var(--k-blue); }
 
 /* 提示词行：标签 + 历史/词库/存入 图标按钮（对齐原版） */
 .prompt-row {
@@ -879,19 +900,8 @@ sp-radio { margin: 1px 0; }
 /* 旧版两行布局的类名保留，避免外部样式引用时失效。 */
 .setup-submit-actions { margin-top: 6px; }
 .setup-notice { min-height: 13px; }
-.setup-notice.ok { color: #8fd8bd; }
-.setup-notice.error { color: #ff9b9b; }
-
-/* --------------------------------------------------------------- 导入 App */
-/* 操作按钮紧跟在输入框下方，页脚只保留「关于 / 返回」 */
-.import-actions {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  margin-top: 8px;
-}
-.import-actions > * { flex: 0 0 auto; }
-.import-actions > * + * { margin-left: 8px; }
+.setup-notice.ok { color: var(--k-ok-text); }
+.setup-notice.error { color: var(--k-err-text); }
 
 /* --------------------------------------------------------------- 运行 App */
 /* 运行按钮放在 App 表单末尾、页面底部，不再占用固定页脚 */
@@ -935,16 +945,17 @@ sp-radio { margin: 1px 0; }
 }
 .about-logo {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: auto;
+  height: 50px;
   object-fit: contain;
   -webkit-user-drag: none;
   pointer-events: none;
 }
-.about-name { font-size: 14px; font-weight: 700; }
-.about-version { margin-top: 2px; font-size: 10px; color: var(--k-text-dim); }
-.about-contact-btn { flex: 0 0 auto; align-self: center; }
-.about-hero .grow { min-width: 0; }
+.about-contact-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: auto;
+}
 .about-changelog {
   margin-top: 8px;
   font-size: 12px;
@@ -1116,6 +1127,17 @@ sp-action-button::part(button) {
 #screenSettings { gap: 0; }
 #screenSettings .section-title + .card { margin-top: 8px; }
 #screenSettings .card + .card { margin-top: 10px; }
+#screenSettings sp-checkbox,
+#screenSettings .k-check { margin-top: 6px; }
+/* Apps 页两个独立开关：纵向排列，避免 UXP flex gap 不稳定。 */
+#screenSettings .apps-filter-toggles {
+  display: flex;
+  flex-direction: column;
+}
+#screenSettings .apps-filter-toggles sp-checkbox,
+#screenSettings .apps-filter-toggles .k-check { margin-top: 0; }
+#screenSettings .apps-filter-toggles sp-checkbox + sp-checkbox,
+#screenSettings .apps-filter-toggles .k-check + .k-check { margin-top: 2px; }
 
 .muted { color: var(--k-text-dim); }
 .tiny { font-size: 10px; }
@@ -1156,9 +1178,9 @@ sp-action-button::part(button) {
   background: var(--k-bg-2);
   color: var(--k-text);
 }
-.notice.error { border-color: var(--k-red); color: #ffb4b4; }
-.notice.warn { border-color: var(--k-orange); color: #ffd9a0; }
-.notice.ok { border-color: var(--k-green); color: #a9e5cf; }
+.notice.error { border-color: var(--k-red); color: var(--k-err-text); }
+.notice.warn { border-color: var(--k-orange); color: var(--k-warn-text); }
+.notice.ok { border-color: var(--k-green); color: var(--k-ok-text); }
 
 /* --------------------------------------------------------------- App 列表 */
 /* 过滤 chips：收藏夹 / 全部 / 工作区 */
@@ -1802,8 +1824,8 @@ sp-action-button::part(button) {
   border-left: 3px solid var(--k-border-2);
   color: var(--k-text);
 }
-.toast.error { border-left-color: var(--k-red); color: #ffb4b4; }
-.toast.ok { border-left-color: var(--k-green); color: #a9e5cf; }
+.toast.error { border-left-color: var(--k-red); color: var(--k-err-text); }
+.toast.ok { border-left-color: var(--k-green); color: var(--k-ok-text); }
 
 /* 骨架 / 空态 */
 .empty {
@@ -1868,7 +1890,7 @@ sp-textarea { min-height: 52px; }
   font: inherit;
 }
 
-/* ========================================================== 对话式生成（图像 / Banana） */
+/* ========================================================== 对话（Krea Agent） */
 /* 对话页独占内容区高度：消息列表自己滚动，输入区永远贴在 footer 上方。
    UXP 不支持 position:fixed，所以用「body 纵向 flex + stream 撑满剩余高度」实现。 */
 .body.chat-body {
@@ -1889,7 +1911,7 @@ sp-textarea { min-height: 52px; }
   flex-direction: column;
   gap: 6px;
 }
-/* 对话页顶部固定两行：第一行模式单选，第二行模型下拉框。 */
+/* 对话页顶部固定一行：Agent 模型下拉框。 */
 .chat-top-row {
   flex: 0 0 auto;
   display: flex;
@@ -1902,21 +1924,6 @@ sp-textarea { min-height: 52px; }
   box-sizing: border-box;
 }
 .chat-top-row .model-trigger { flex: 0 0 auto; width: 100%; min-width: 0; }
-/* 图像生成 / AI 对话：沿用生成页的单选按钮样式，两项保持同一行。 */
-.chat-mode-radio {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 14px;
-  width: 100%;
-  margin: 0;
-}
-.chat-mode-radio sp-radio,
-.chat-mode-radio .k-check {
-  flex: 0 0 auto;
-  margin: 0;
-}
 /* 对话页三个控件都必须按父容器的 content-box 精确收边：
    UXP 对 <button> / <sp-button> 宿主的 box-sizing 处理不稳定，
    只写 width:100% 时会把 padding / 边框再加一遍，右侧就会探出面板。 */
@@ -1976,41 +1983,6 @@ sp-textarea { min-height: 52px; }
   color: var(--k-text-dim);
   font-size: 11px;
 }
-.chat-card {
-  flex: 0 0 auto;
-  border: 1px solid var(--k-border-2);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--k-bg);
-}
-/* 多轮对话时单张结果图不再占满整屏，保证历史消息可通过滚动回看 */
-.chat-card img {
-  width: 100%;
-  max-height: 260px;
-  display: block;
-  object-fit: contain;
-  background: #000;
-}
-.chat-card-prompt {
-  padding: 6px 8px;
-  font-size: 11px;
-  color: var(--k-text);
-  border-top: 1px solid var(--k-border-2);
-  word-break: break-word;
-}
-.chat-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 8px 8px;
-}
-.chat-card-status {
-  padding: 16px 8px;
-  font-size: 11px;
-  color: var(--k-text-dim);
-  text-align: center;
-}
-.chat-card-status.error { color: #ff9b9b; }
 /* AI 对话：用户 / Agent 文本气泡。文本必须可选中，方便复制提示词。 */
 .agent-msg {
   flex: 0 0 auto;
@@ -2045,7 +2017,7 @@ sp-textarea { min-height: 52px; }
   -webkit-user-select: text;
   user-select: text;
 }
-.agent-msg.error .agent-text { color: #ffb4b4; }
+.agent-msg.error .agent-text { color: var(--k-err-text); }
 .agent-actions {
   display: flex;
   gap: 4px;
@@ -2102,18 +2074,4 @@ sp-textarea { min-height: 52px; }
   gap: 3px;
 }
 .chat-model-wrap .model-trigger { flex: 0 0 auto; }
-.chat-card-actions button {
-  flex: 1 1 0;
-  min-width: 0;
-  font-family: inherit;
-  font-size: 10px;
-  color: var(--k-text);
-  background: var(--k-bg-3);
-  border: 1px solid var(--k-btn-border);
-  border-radius: 4px;
-  padding: 4px 6px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.chat-card-actions button:hover { border-color: var(--k-btn-border); background: var(--k-bg-2); }
 

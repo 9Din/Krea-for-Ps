@@ -10,17 +10,17 @@
 	<body>
 		<div id="app">
 			<!-- 版本戳：由构建脚本写入，main.js 启动时会和自身 VERSION 比对 -->
-			<div id="buildStamp" hidden data-version="2.3.8">
+			<div id="buildStamp" hidden data-version="2.3.9">
 			</div>
 			<!-- ============================ 顶部品牌栏 ============================ -->
 			<header class="header">
 				<img class="brand" id="brandIcon" src="icons/dark.png" width="26" height="26" alt="Krea">
 				<div class="titles">
 					<div class="name">
-						Krea for Ps
+						Krea Residential Tools
 					</div>
 					<div class="sub" id="headerSub" data-i18n="header.tagline">
-						Generative Fill · HBA
+						AI Tools for Residential Design · HBA
 					</div>
 				</div>
 				<div class="actions">
@@ -197,9 +197,6 @@
 						<div class="icon-ghost apps-tool" id="btnAppsRefresh" role="button" tabindex="0" title="刷新" data-i18n-title="apps.refresh">
 							<img class="k-icon i-refresh" data-icon="refresh" src="./icons/ui/dark/refresh.png" width="12" height="12" alt="" />
 						</div>
-						<div class="icon-ghost apps-tool" id="btnAppsImport" role="button" tabindex="0" title="导入 App" data-i18n-title="apps.importTitle">
-							<img class="k-icon i-import" data-icon="import" src="./icons/ui/dark/import.png" width="12" height="12" alt="" />
-						</div>
 					</div>
 					<div class="chips" id="appFilters">
 						<button class="chip active" data-filter="all" data-i18n="apps.filterAll">
@@ -222,32 +219,6 @@
 					<div class="empty hidden" id="appsEmpty" data-i18n="apps.noneEmpty">
 						暂无 App。
 					</div>
-				</section>
-				<!-- ---------------------------- 导入 App ---------------------------- -->
-				<section class="screen" id="screenAppsImport" hidden>
-					<div class="section-title">
-						<span data-i18n="apps.importTitle">
-							导入 App
-						</span>
-						<span class="rule">
-						</span>
-					</div>
-					<sp-body class="tiny muted wrap" data-i18n="apps.importHint">
-						支持三种方式：① App ID 或分享链接；② App 定义 JSON；③ 从文件导入。
-					</sp-body>
-					<textarea id="appImportText" class="k-textarea" placeholder='App ID / 分享链接 / {"id":"...","name":"...","inputs":[...]}' data-i18n-placeholder="apps.importPlaceholder" style="min-height:80px;"></textarea>
-					<div class="import-actions">
-						<sp-button id="btnImportFile" size="s" variant="secondary" data-i18n="apps.importFile">
-							导入文件
-						</sp-button>
-						<sp-button id="btnImportApp" size="s" variant="cta" data-i18n="apps.importAction">
-							导入
-						</sp-button>
-					</div>
-					<sp-body class="tiny" id="appImportError" style="color:#ff8080;">
-					</sp-body>
-					<sp-body class="tiny muted wrap" id="appImportResult">
-					</sp-body>
 				</section>
 				<!-- ---------------------------- 运行 App ---------------------------- -->
 				<section class="screen" id="screenAppRun" hidden>
@@ -386,13 +357,9 @@
 						</div>
 					</div>
 				</section>
-				<!-- ------------------------------ 对话（图像生成 / AI 对话） ------------------------------ -->
+				<!-- ------------------------------ 对话（AI 对话） ------------------------------ -->
 				<section class="screen chat-screen" id="screenChat" hidden>
 					<div class="chat-top-row">
-						<sp-radio-group id="chatModeOptions" selected="image" class="chat-mode-radio">
-							<sp-radio value="image" checked data-i18n="chat.modeImage">图像</sp-radio>
-							<sp-radio value="agent" data-i18n="chat.modeAgent">AI 对话</sp-radio>
-						</sp-radio-group>
 						<div class="chat-model-wrap">
 							<button class="dd-trigger model-trigger" id="chatModelTrigger">
 								<span id="chatModelLabel">—</span>
@@ -408,7 +375,7 @@
 							<sp-button id="chatClearBtn" size="s" quiet variant="secondary" data-i18n="chat.clear">清空对话</sp-button>
 						</div>
 						<div class="thumb-strip" id="chatSourceThumb"></div>
-						<textarea id="chatPrompt" class="k-textarea" style="min-height:56px;" placeholder="描述你想生成的画面…" data-i18n-placeholder="chat.placeholder"></textarea>
+						<textarea id="chatPrompt" class="k-textarea" style="min-height:56px;" placeholder="问点什么，或让我帮你写提示词…" data-i18n-placeholder="chat.agentPlaceholder"></textarea>
 						<sp-button id="chatSendBtn" variant="cta" data-i18n="chat.send">发送</sp-button>
 					</div>
 				</section>
@@ -558,6 +525,18 @@
 					</div>
 					<div class="card tight">
 						<div class="card-title">
+							<sp-heading size="s" data-i18n="settings.apps">Apps 页面</sp-heading>
+						</div>
+						<div class="apps-filter-toggles">
+							<sp-checkbox id="hideAppsAll" data-i18n="settings.hideAppsAll">隐藏「全部」</sp-checkbox>
+							<sp-checkbox id="hideAppsFav" data-i18n="settings.hideAppsFav">隐藏「收藏夹」</sp-checkbox>
+						</div>
+						<sp-body class="tiny muted wrap" style="margin-top:4px;" data-i18n="settings.hideAppsFiltersHint">
+							隐藏或显示Apps
+						</sp-body>
+					</div>
+					<div class="card tight">
+						<div class="card-title">
 							<sp-heading size="s" data-i18n="settings.update">插件更新</sp-heading>
 						</div>
 						<div class="row wrap-row">
@@ -573,14 +552,7 @@
 					</div>
 					<div class="card tight">
 						<div class="about-hero">
-							<img class="about-logo" src="./icons/dark.png" alt="Krea">
-							<div class="grow">
-								<div class="about-name">Krea for Ps</div>
-								<div class="about-version">
-									<span data-i18n="about.version">当前版本</span>
-									<span id="aboutVersion">v2.3.8</span>
-								</div>
-							</div>
+							<img class="about-logo" src="./icons/logo.png" alt="Krea">
 							<sp-button id="btnAboutContact" class="about-contact-btn" size="s" variant="secondary" data-i18n="about.contact">联系我们</sp-button>
 						</div>
 						<div class="about-changelog" id="aboutChangelog" data-i18n="about.why">
@@ -593,6 +565,16 @@
 						</div>
 						<div class="tiny muted" id="aboutMeta" style="margin-top:6px;">—</div>
 						<div class="tiny muted" id="aboutIconPack" style="margin-top:2px;">—</div>
+					</div>
+
+					<div class="card tight">
+						<div class="section-title">
+							<span data-i18n="about.intro">插件简介</span>
+							<span class="rule"></span>
+						</div>
+						<div class="about-copy" data-i18n="about.introBody">
+							Krea for PS 是直连 Krea Open API 的原生 Photoshop 面板插件。支持选区驱动式 AI 图像生成与编辑，内置 44 款云端模型（Krea 2/3、Nano Banana、GPT-Image、Flux、Seedream 等），生成内容自动适配选区并以独立图层置入文档；搭载 Node App 工作流、提示词词库与边缘羽化功能，兼容 Photoshop 2021+。
+						</div>
 					</div>
 
 					<div class="card tight">
@@ -634,7 +616,7 @@
 								<span class="about-step-no">5</span>
 								<div class="about-step-body">
 									<div class="about-step-title" data-i18n="about.step5Title">生成与微调</div>
-									<div class="about-step-desc" data-i18n="about.step5Body">选择输出方式（插入为新图层 / 替换原图层），点击「生成」。结果会自动落位；可用「羽化边缘」、提示词历史与词库继续调整。对话和 App 结果还可置入新画布。</div>
+									<div class="about-step-desc" data-i18n="about.step5Body">选择输出方式（插入为新图层 / 替换原图层），点击「生成」。结果会自动落位；可用「羽化边缘」、提示词历史与词库继续调整。App 结果还可置入新画布。</div>
 								</div>
 							</div>
 						</div>
@@ -660,14 +642,14 @@
 							<div class="about-copy" data-i18n="about.fn.modelsBody">
 								• 内置 44 个模型，按厂商分组：Krea 2 Medium / Large / Turbo、Krea 3；Google Nano Banana 系列；OpenAI GPT-Image 系列；Flux 1.1 / Kontext；Seedream / Seededit；Ideogram、Topaz、Magnific 等。
 								• 覆盖文生图、图生图、局部重绘、放大 / 增强等场景。
-								• 「对话」页聚焦 Krea 自研与 Google Nano Banana 模型，自动按当前选区比例生成，适合连续出图和改图。
+								• 「对话」页使用 Krea Agent，可分析图片、写提示词并继续多轮对话。
 								• 模型参数由 Krea 智能填充，无需逐个设置 seed、步数等高级参数。
 							</div>
 						</div>
 						<div class="about-block">
 							<div class="about-subtitle" data-i18n="about.fn.outputTitle">输出与落位</div>
 							<div class="about-copy" data-i18n="about.fn.outputBody">
-								• 生成页两种输出方式：插入为新图层 / 替换原图层；对话与 App 结果还可置入新画布。
+								• 生成页两种输出方式：插入为新图层 / 替换原图层；App 结果还可置入新画布。
 								• 结果自动缩放到选区大小并精确落位；替换模式只覆盖选区，选区外像素保留。
 								• 生成后可对选区边缘执行羽化，羽化量可调。
 							</div>
@@ -685,7 +667,7 @@
 							<div class="about-copy" data-i18n="about.fn.appsBody">
 								• 直接运行 Krea Node Apps：浏览工作区 / 公开 App，搜索、收藏、置顶。
 								• 按 App 的输入 Schema 自动生成表单，支持文本、数字、滑杆、下拉、图片与多图。
-								• 可通过 App ID、分享链接、JSON 或文件导入 App；视频结果自动在浏览器打开。
+								• 视频结果自动在浏览器打开。
 							</div>
 						</div>
 						<div class="about-block">
@@ -698,15 +680,6 @@
 						</div>
 					</div>
 
-					<div class="card tight">
-						<div class="section-title">
-							<span data-i18n="about.intro">插件简介</span>
-							<span class="rule"></span>
-						</div>
-						<div class="about-copy" data-i18n="about.introBody">
-							Krea for PS 是直连 Krea Open API 的原生 Photoshop 面板插件。支持选区驱动式 AI 图像生成与编辑，内置 44 款云端模型（Krea 2/3、Nano Banana、GPT-Image、Flux、Seedream 等），生成内容自动适配选区并以独立图层置入文档；搭载 Node App 工作流、提示词词库与边缘羽化功能，兼容 Photoshop 2021+。
-						</div>
-					</div>
 				</section>
 			</div>
 				<!-- ============================== 底部操作栏 =========================== -->

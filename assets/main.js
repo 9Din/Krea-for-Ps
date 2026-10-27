@@ -3,7 +3,7 @@
  *
  * 要点
  *   · Apps 优先：主界面列出 Krea 的 Node Apps，表单由 GET /node-apps 返回的
- *     input_openapi_schema 自动生成；也可粘贴 App ID / 分享链接 / JSON 导入。
+ *     input_openapi_schema 自动生成。
  *   · 生成页直连模型：模型列表来自官方 OpenAPI（models.js），参数交给 Krea 智能填充。
  *   · 统一的「输入 → 提交 → 轮询 → 置入图层」管线。
  *   · Token 只由 KREA_STORE 管理（系统钥匙串 + 本地加密/混淆备份），本文件不落盘任何凭据。
@@ -28,7 +28,7 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.3.8";
+  var VERSION = "2.3.9";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
   /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
   var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
@@ -69,36 +69,10 @@
   var PROGRESS_GIF_DELAY = 130;
 
   /*
-   * 对话式 Tab（chat）允许的模型白名单：
-   *   = Krea 自研 4 个 + Google Nano Banana 5 个
-   * 下拉框里按厂商分组展示。其余模型仍在「生成」Tab 的完整选择器里。
+   * 对话 Tab（chat）现在只承载 Krea Agent。
+   * 图像生成统一放在「生成」Tab，使用完整的模型选择器；
+   * Agent 模型列表见下方 AGENT_MODEL_GROUPS。
    */
-  var TAB_MODELS = {
-    chat: {
-      default: "google/nano-banana-pro",
-      groups: [
-        {
-          label: { zh: "Krea 自研", en: "Krea" },
-          ids: [
-            "krea/krea-2/medium",
-            "krea/krea-2/large",
-            "krea/krea-2/medium-turbo",
-            "krea/krea-3"
-          ]
-        },
-        {
-          label: { zh: "Google Nano Banana", en: "Google Nano Banana" },
-          ids: [
-            "google/nano-banana-pro",
-            "google/nano-banana-2.1",
-            "google/nano-banana-2",
-            "google/nano-banana-flash-lite",
-            "google/nano-banana"
-          ]
-        }
-      ]
-    }
-  };
   /* 兼容老用户配置里残留的 "image" / "banana" tab */
   var LEGACY_TAB_ALIAS = { image: "chat", banana: "chat" };
 
@@ -165,16 +139,15 @@
     appsSource: "builtin",      // builtin | cache | remote | workspace
     appsManifestUpdatedAt: 0,
     appFilter: "all",           // all | fav | workspace
+    hideAppsAll: false,         // true = 隐藏 Apps 的「全部」筛选
+    hideAppsFav: false,         // true = 隐藏 Apps 的「收藏夹」筛选
     pendingPrompt: null,
     appQuery: "",
     currentApp: null,
     appForm: null,
     source: null,        // {base64,name}|{url,name,remote:true}
     refs: [],
-    chatHistory: [],     // [{prompt, base64, mime, model, ts}] — 对话式生成的消息流
-    /* AI 对话（Agent API）：和图像消息分开存，切换模式不会丢历史。
-       sessionId 只在本次面板会话内保留；清空对话会同时结束这段上下文。 */
-    chatMode: "image",   // image | agent
+    /* Krea Agent：sessionId 只在本次面板会话内保留；清空对话会结束这段上下文。 */
     agentModel: "",      // "" = Auto
     agentAllowed: null,  // 403 allowedModels 返回的白名单
     agentHistory: [],    // [{role:"user"|"assistant"|"error", text, model, ts, pending}]
@@ -592,15 +565,36 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     // UXP 官方主题变量优先；Spectrum 变量用于兼容旧版面板。
     try {
       var cs = window.getComputedStyle(document.documentElement);
-      var vars = [
+      var bgVars = [
         "--uxp-host-background-color",
         "--spectrum-alias-background-color-default"
       ];
-      for (var i = 0; i < vars.length; i++) {
-        var varLum = colorLum(cs.getPropertyValue(vars[i]));
-        if (varLum !== null) return varLum > 0.55;
+      for (var i = 0; i < bgVars.length; i++) {
+        var bgLum = colorLum(cs.getPropertyValue(bgVars[i]));
+        if (bgLum !== null) return bgLum > 0.55;
+      }
+      // 有些 PS 版本只暴露文字色：浅色主题是深色文字。
+      var textVars = [
+        "--uxp-host-text-color",
+        "--spectrum-alias-text-color"
+      ];
+      for (var ti = 0; ti < textVars.length; ti++) {
+        var varTextLum = colorLum(cs.getPropertyValue(textVars[ti]));
+        if (varTextLum !== null) return varTextLum < 0.45;
       }
     } catch (e) { /* ignore */ }
+
+    // 部分 UXP 版本支持 prefers-color-scheme，但变量和计算背景都拿不到。
+    // 放在计算背景之前，避免我们自己写的深色兜底把结果锁死为 dark。
+    try {
+      if (window.matchMedia) {
+        var mq = window.matchMedia("(prefers-color-scheme: light)");
+        if (mq && typeof mq.matches === "boolean" &&
+          String(mq.media || "").indexOf("not all") < 0) {
+          return mq.matches;
+        }
+      }
+    } catch (e4) { /* ignore */ }
 
     // 个别版本不返回主题变量，改读实际背景色。
     var nodes = [
@@ -628,16 +622,6 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       } catch (e3) { /* ignore */ }
     }
 
-    // 最后才用 matchMedia；media === "not all" 表示不支持。
-    try {
-      if (window.matchMedia) {
-        var mq = window.matchMedia("(prefers-color-scheme: light)");
-        if (mq && typeof mq.matches === "boolean" &&
-          String(mq.media || "").indexOf("not all") < 0) {
-          return mq.matches;
-        }
-      }
-    } catch (e4) { /* ignore */ }
     return false;
   }
 
@@ -650,6 +634,19 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
   function applyIconTheme() {
     var theme = isLightTheme() ? "light" : "dark";
     var seen = [];
+
+    // CSS 变量和图标共用同一套主题判断：浅色 PS 下整套面板变量会切到浅色值。
+    try { document.documentElement.setAttribute("data-theme", theme); } catch (e0) { /* ignore */ }
+
+    // 顶栏品牌图跟 manifest 的 PS 主题图标一致：浅色用 light.png，深色用 dark.png。
+    var brand = $("brandIcon");
+    if (brand) {
+      var brandSrc = theme === "light" ? "icons/light.png" : "icons/dark.png";
+      if (brand.getAttribute("src") !== brandSrc) {
+        brand.setAttribute("src", brandSrc);
+        try { brand.src = brandSrc; } catch (e1) { /* ignore */ }
+      }
+    }
 
     function applyOne(img) {
       if (!img || seen.indexOf(img) >= 0) return;
@@ -1003,7 +1000,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
 
   /* ============================== 路由 ============================== */
   var SCREEN_IDS = [
-    "screenSetup", "screenApps", "screenAppsImport", "screenAppRun",
+    "screenSetup", "screenApps", "screenAppRun",
     "screenGenerate", "screenChat", "screenAssets", "screenHistory", "screenLibrary", "screenPromptEdit", "screenSettings",
     "screenAbout"
   ];
@@ -1038,7 +1035,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     // 从「连接 API」页打开关于时不要突然露出 tab；从其他页面打开则保留当前 tab。
     var isSetup = name === "screenSetup" || (isAbout && aboutReturn === "screenSetup");
     $("tabBar").classList.toggle("hidden", isSetup);
-    var activeApps = name === "screenApps" || name === "screenAppsImport" || name === "screenAppRun" ||
+    var activeApps = name === "screenApps" || name === "screenAppRun" ||
       (isAbout && st.tab === "apps");
     var activeGen = name === "screenGenerate" && st.tab === "generate" || (isAbout && st.tab === "generate");
     var activeChat = (name === "screenChat" && st.tab === "chat") ||
@@ -1088,16 +1085,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       onEnterAssets();
       return;
     }
-    // chat：对话式 UI（screenChat）
-    var wh = TAB_MODELS[tab];
-    if (wh) {
-      var allowed = [];
-      wh.groups.forEach(function (g) { allowed = allowed.concat(g.ids); });
-      if (allowed.indexOf(st.model) < 0) {
-        st.model = MODELS.models[wh.default] ? wh.default : MODELS.defaultModel;
-        S.setPrefs({ model: st.model });
-      }
-    }
+    // chat：Krea Agent 对话（screenChat）
     show("screenChat");
     onEnterChat();
   }
@@ -1117,10 +1105,6 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
         break;
       case "screenApps":
         hint = "";
-        break;
-      case "screenAppsImport":
-        // 「导入文件 / 导入」按钮已经放在输入框下方，页脚只保留返回。
-        btns.push(back());
         break;
       case "screenAppRun":
         // 运行按钮已经放在 App 表单末尾，页脚只保留返回。
@@ -1829,28 +1813,13 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       var i = first.indexOf(id);
       return i >= 0 ? i : 10;
     };
-    var wh = TAB_MODELS[st.tab];
-    var groups;
-    if (wh && wh.groups) {
-      // 对话式 Tab：按厂商分组列出白名单模型
-      var lang = I18N.lang();
-      groups = wh.groups.map(function (g) {
-        return {
-          label: "— " + (g.label[lang] || g.label.en) + " —",
-          items: g.ids
-            .filter(function (id) { return !!MODELS.models[id]; })
-            .map(function (id) { return { value: id, label: modelLabel(id) }; })
-        };
-      });
-    } else {
-      var ordered = MODELS.groups.slice().sort(function (a, b) { return rank(a.id) - rank(b.id); });
-      groups = ordered.map(function (g) {
-        return {
-          label: "— " + (g.label[I18N.lang()] || g.label.en) + " —",
-          items: g.models.map(function (id) { return { value: id, label: modelLabel(id) }; })
-        };
-      });
-    }
+    var ordered = MODELS.groups.slice().sort(function (a, b) { return rank(a.id) - rank(b.id); });
+    var groups = ordered.map(function (g) {
+      return {
+        label: "— " + (g.label[I18N.lang()] || g.label.en) + " —",
+        items: g.models.map(function (id) { return { value: id, label: modelLabel(id) }; })
+      };
+    });
     return openPicker({
       title: T("gen.model"),
       groups: groups,
@@ -1868,7 +1837,6 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       renderModelForm();
       setGenerateButtonMode(false);
       updateHeader();
-      updateChatModelLabel();
     });
   }
 
@@ -1879,11 +1847,9 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
 
   function updateChatModelLabel() {
     var label = $("chatModelLabel");
-    if (label) label.textContent = st.chatMode === "agent" ? llmLabel(st.agentModel) : modelLabel(st.model);
+    if (label) label.textContent = llmLabel(st.agentModel);
     var btn = $("chatModelTrigger");
-    if (btn) {
-      btn.title = st.chatMode === "agent" ? T("chat.agentModel") : T("gen.model");
-    }
+    if (btn) btn.title = T("chat.agentModel");
   }
 
   function openAgentModelPicker(anchor) {
@@ -1919,8 +1885,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
   }
 
   function openChatModelPicker(anchor) {
-    if (st.chatMode === "agent") return openAgentModelPicker(anchor);
-    return openModelPickerFor(anchor);
+    return openAgentModelPicker(anchor);
   }
 
   function buildModelPicker() {
@@ -2799,30 +2764,18 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     }
   }
 
-  /* ============================================================ 对话（图像 / Agent） */
-  function syncChatModeUi() {
-    var mode = st.chatMode === "agent" ? "agent" : "image";
-    setRadio($("chatModeOptions"), mode);
+  /* ============================================================ 对话（Krea Agent） */
+  function syncChatUi() {
     var input = $("chatPrompt");
-    if (input) input.setAttribute("placeholder", T(mode === "agent" ? "chat.agentPlaceholder" : "chat.placeholder"));
+    if (input) input.setAttribute("placeholder", T("chat.agentPlaceholder"));
     updateChatModelLabel();
-  }
-
-  function setChatMode(mode, persist) {
-    if (st.busy) return;
-    st.chatMode = mode === "agent" ? "agent" : "image";
-    if (persist) S.setPrefs({ chatMode: st.chatMode });
-    closePicker();
-    syncChatModeUi();
-    renderChatStream();
-    fitChatStream();
   }
 
   function onEnterChat() {
     // 进入页面不再自动抓选区（避免无意义的 PS 模态截屏闪烁）。
     // 上传的图片保留；上次发送时抓到的选区图在重新进入时清掉，发送前会按当前选区重新抓。
     if (st.source && st.source.kind !== "file") st.source = null;
-    syncChatModeUi();
+    syncChatUi();
     renderChatStream();
     renderChatSource();
   }
@@ -2842,12 +2795,6 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     }));
     strip.appendChild(cell);
     fitChatStream();
-  }
-
-  function chatPendingText(item) {
-    var text = item && item.downloadFailed ? T("download.title") : T("common.working");
-    if (item && item.prompt) text += " · " + item.prompt;
-    return text;
   }
 
   async function writeClipboardText(text) {
@@ -2923,178 +2870,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     var host = $("chatStream");
     if (!host) return;
     clear(host);
-    if (st.chatMode === "agent") {
-      renderAgentStream(host);
-      return;
-    }
-    if (!st.chatHistory.length) {
-      host.appendChild(mk("div", { class: "chat-empty", text: T("chat.empty") }));
-      fitChatStream();
-      return;
-    }
-    st.chatHistory.forEach(function (item, idx) {
-      // 生成中的占位项不画卡片：进度统一交给标签栏下方的运行框，
-      // 避免页面里再出现一套 spinner / 取消按钮。
-      if (item.pending) return;
-      var card = mk("div", { class: "chat-card" });
-      if (item.base64) {
-        card.appendChild(mk("img", { src: uriOf(item), alt: "" }));
-        card.appendChild(mk("div", { class: "chat-card-prompt", text: item.prompt || "" }));
-        var actions = mk("div", { class: "chat-card-actions" });
-        actions.appendChild(mk("button", {
-          class: "sp-button", variant: "secondary", size: "s",
-          text: T("chat.place"),
-          on: { click: function () { onChatPlace(idx); } }
-        }));
-        actions.appendChild(mk("button", {
-          class: "sp-button", variant: "secondary", size: "s",
-          text: T("chat.placeNewDoc"),
-          on: { click: function () { onChatPlaceNewDoc(idx); } }
-        }));
-        actions.appendChild(mk("button", {
-          class: "sp-button", variant: "secondary", size: "s",
-          text: T("chat.delete"),
-          on: { click: function () {
-            st.chatHistory.splice(idx, 1);
-            renderChatStream();
-          } }
-        }));
-        card.appendChild(actions);
-      } else {
-        var statusEl = mk("div", {
-          class: "chat-card-status" + (item.downloadFailed ? " error" : ""),
-          text: chatPendingText(item)
-        });
-        card.appendChild(statusEl);
-      }
-      host.appendChild(card);
-    });
-    fitChatStream();
-    host.scrollTop = host.scrollHeight;
-  }
-
-  async function onChatPlaceNewDoc(idx) {
-    var item = st.chatHistory[idx];
-    if (!item || !item.base64) return;
-    // imageSizeFromBase64 返回 { width, height }，不是 { w, h }。
-    // 解析失败时交给 PS.place 的 app.open 路径按真实像素建画布，不再兜底 1024。
-    var size = PS.imageSizeFromBase64(item.base64);
-    try {
-      var res = await PS.place({
-        base64: item.base64,
-        mode: "newDocument",
-        docWidth: size && size.width,
-        docHeight: size && size.height,
-        name: modelLabel(item.model || st.model)
-      });
-      toast(T("gen.placed", { name: (res && res.name) || "Krea" }), "ok");
-    } catch (e) { handleError(e, "chat-place-newdoc"); }
-  }
-
-  async function onImageChatSend() {
-    if (st.busy) return;
-    var model = MODELS.models[st.model];
-    if (!model) return;
-    var input = $("chatPrompt");
-    var prompt = String(input && input.value || "").trim();
-    if (!API.hasToken()) { toast(T("err.noToken"), "error"); show("screenSetup"); return; }
-    if (!prompt) { toast(T("gen.needPrompt"), "error"); return; }
-
-    setChatBusy(true);
-    st.cancelFlag = false;
-    // 和 App 运行页一致：抓选区 / 生成 / 下载都显示在标签栏下方的同一个运行框。
-    // 抓选区阶段也允许取消；抓图返回后会先检查取消标记，不会继续提交任务。
-    showProgress(T("gen.phase.capture"), modelLabel(st.model), true);
-    startProgressTimer();
-    try {
-      /* 默认使用当前选区：发送前和生成页一样实时抓取一次，避免发送旧缓存。
-         用户上传的图片优先；只有上传图才跳过选区抓取。 */
-      var chatSnap = null;
-      if (!st.source || st.source.kind !== "file") {
-        try {
-          chatSnap = await captureSelectionForGenerate();
-        } catch (e) {
-          if (st.cancelFlag) { toast(T("gen.cancelled")); return; }
-          var message = errMsg(e);
-          if (message === T("gen.needDoc") || message === T("gen.needSelection")) {
-            toast(T("chat.needSource"), "error");
-          } else {
-            handleError(e, "chat-send");
-          }
-          return;
-        }
-      }
-      st.lastSnapshot = chatSnap || await snapshotPs();
-      if (st.cancelFlag) { toast(T("gen.cancelled")); return; }
-      renderChatSource();
-
-      // 占位项：进度统一显示在顶部运行框里，消息列表生成期间不画卡片。
-      var placeholder = {
-        prompt: prompt, base64: null, mime: null, model: st.model,
-        ts: Date.now(), pending: true
-      };
-      st.chatHistory.push(placeholder);
-      renderChatStream();
-      if (input) input.value = "";
-
-      // 对话页只发送当前选区 / 上传图；不继承生成页的参考图。
-      var body = buildGenerateBody({ promptOverride: prompt, fromChat: true, refs: [] });
-      var out = await runPipeline({
-        title: modelLabel(st.model),
-        preserveCancel: true,
-        submit: function () { return API.generate(st.model, body); }
-      });
-      if (!out) {
-        // 用户取消：移除占位卡片，恢复提示词
-        st.chatHistory.pop();
-        renderChatStream();
-        if (input && !String(input.value || "").trim()) input.value = prompt;
-        return;
-      }
-      if (!out.base64) {
-        handleMediaResult(out.primary);
-        st.chatHistory.pop();
-        renderChatStream();
-        if (input && !String(input.value || "").trim()) input.value = prompt;
-        return;
-      }
-      placeholder.base64 = out.base64;
-      placeholder.mime = "image/png";
-      placeholder.pending = false;
-      renderChatStream();
-      pushHistory(prompt || modelLabel(st.model));
-    } catch (e) {
-      if (e && e.code === "download") {
-        // 任务已完成，只是下载失败：占位项改成“下载失败”；
-        // 上方恢复条仍可只重试下载，不会重新生成。
-        placeholder.pending = false;
-        placeholder.downloadFailed = true;
-        renderChatStream();
-        var recovered = await recoverDownloadInteractive(e.primary, modelLabel(st.model), e.jobId);
-        if (recovered) {
-          placeholder.base64 = recovered;
-          placeholder.mime = "image/png";
-          placeholder.pending = false;
-          placeholder.downloadFailed = false;
-          renderChatStream();
-          pushHistory(prompt || modelLabel(st.model));
-          return;
-        }
-        // 用户取消：清掉占位卡片，恢复提示词，但不要把“下载失败”再报成生成失败。
-        st.chatHistory.pop();
-        renderChatStream();
-        if (input && !String(input.value || "").trim()) input.value = prompt;
-        return;
-      }
-      st.chatHistory.pop();
-      renderChatStream();
-      if (input && !String(input.value || "").trim()) input.value = prompt;
-      handleError(e, "chat-send");
-    } finally {
-      setChatBusy(false);
-      hideProgress();
-      stopProgressTimer();
-    }
+    renderAgentStream(host);
   }
 
   function agentErrorText(e) {
@@ -3116,17 +2892,6 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       var el = $(id);
       if (el) el.disabled = !!on;
     });
-    // 单选组没有统一的 disabled 行为：组元素与降级后的原生 radio 都设一遍。
-    var modeGroup = $("chatModeOptions");
-    if (modeGroup) {
-      modeGroup.disabled = !!on;
-      try {
-        if (on) modeGroup.setAttribute("disabled", "");
-        else modeGroup.removeAttribute("disabled");
-      } catch (e) { /* ignore */ }
-      var modeRadios = modeGroup.querySelectorAll("sp-radio, input[type=radio]") || [];
-      for (var i = 0; i < modeRadios.length; i++) modeRadios[i].disabled = !!on;
-    }
   }
 
   /**
@@ -3244,22 +3009,20 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
   }
 
   async function onChatSend() {
-    if (st.chatMode === "agent") return await onAgentChatSend();
-    return await onImageChatSend();
+    return await onAgentChatSend();
   }
 
   function chatHasContent() {
     var input = $("chatPrompt");
-    return !!(st.chatHistory.length || st.agentHistory.length || st.source ||
+    return !!(st.agentHistory.length || st.source ||
       (input && String(input.value || "").trim()));
   }
 
   async function onChatClear() {
     if (st.busy || !chatHasContent()) return;
     if (!(await confirmSheet(T("chat.clearConfirm")))) return;
-    // 「清空对话」清掉这一页的所有内容：两套消息、上传/选区的输入图、输入框草稿，
+    // 「清空对话」清掉消息、上传/选区的输入图和输入框草稿，
     // 并结束本地 Agent 会话上下文（服务端历史不会删除，但后续消息会另起会话）。
-    st.chatHistory = [];
     st.agentHistory = [];
     st.agentSessionId = null;
     st.agentRunId = null;
@@ -3270,15 +3033,6 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     renderChatStream();
     renderChatSource();
     toast(T("chat.clear"), "ok");
-  }
-
-  async function onChatPlace(idx) {
-    var item = st.chatHistory[idx];
-    if (!item || !item.base64) return;
-    try {
-      st.lastSnapshot = await snapshotPs();
-      await placeResult(item.base64, modelLabel(item.model || st.model));
-    } catch (e) { handleError(e, "chat-place"); }
   }
 
   async function snapshotPs() {
@@ -3454,7 +3208,6 @@ if (ex && (typeof index !== "number" || index < 60)) thumb.src = ex;
       class: "badge" + (app.scope === "workspace" ? " info" : ""),
       text: scopeLabel(app.scope)
     }));
-    if (app.source === "custom") nameRow.appendChild(mk("span", { class: "badge warn", text: "JSON" }));
     if (isVideoApp(app)) nameRow.appendChild(mk("span", { class: "badge", text: T("apps.badgeVideo") }));    info.appendChild(nameRow);
     if (app.description) info.appendChild(mk("div", { class: "desc", text: app.description }));
     var meta = mk("div", { class: "meta" });
@@ -3640,9 +3393,15 @@ if (ex && (typeof index !== "number" || index < 60)) thumb.src = ex;
   function renderAppFilters() {
     var host = $("appFilters");
     if (!host) return;
+    var hideAll = !!st.hideAppsAll;
+    var hideFav = !!st.hideAppsFav;
     var chips = host.children;
     for (var i = 0; i < chips.length; i++) {
       var f = chips[i].getAttribute("data-filter");
+      // 「全部」和「收藏夹」各自独立隐藏；隐藏项用 display:none，
+      // 剩余 chip 仍由 flex 从左侧排布。
+      chips[i].classList.toggle("hidden",
+        (f === "all" && hideAll) || (f === "fav" && hideFav));
       chips[i].classList.toggle("active", f === st.appFilter);
     }
   }
@@ -4037,74 +3796,6 @@ out.sort(function (a, b) {
     } finally {
       st.busy = false;
     }
-  }
-
-  /* ---------------------------- 导入 App ---------------------------- */
-  function extractAppId(text) {
-    var s = String(text || "").trim();
-    var m = s.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
-    return m ? m[0] : null;
-  }
-
-  async function onImportText() {
-    var raw = String($("appImportText").value || "").trim();
-    $("appImportError").textContent = "";
-    $("appImportResult").textContent = "";
-    if (!raw) { $("appImportError").textContent = T("apps.importNeedText"); return; }
-
-    // JSON 定义
-    if (raw.charAt(0) === "{" || raw.charAt(0) === "[") {
-      var parsed;
-      try { parsed = JSON.parse(raw); } catch (e) {
-        $("appImportError").textContent = T("apps.importBadJson", { msg: errMsg(e) });
-        return;
-      }
-      var def = parsed.kreaApp || parsed;
-      if (Array.isArray(def)) def = def[0];
-      var app = normalizeApp(Object.assign({ source: "custom" }, def));
-      if (!app) { $("appImportError").textContent = T("apps.importBadJson", { msg: "缺少 id" }); return; }
-      await saveCustomApp(app);
-      $("appImportResult").textContent = T("apps.importOk", { name: app.name });
-      toast(T("apps.importOk", { name: app.name }), "ok");
-      show("screenApps");
-      return;
-    }
-
-    // App ID / 分享链接
-    var id = extractAppId(raw);
-    if (!id) { $("appImportError").textContent = T("apps.importNeedText"); return; }
-    $("appImportResult").textContent = T("apps.importRunning");
-    try {
-      var fetched = await API.getApp(id);
-      var app2 = normalizeApp(Object.assign({ source: "custom" }, fetched));
-      if (!app2) throw new Error("empty response");
-      await saveCustomApp(app2);
-      $("appImportResult").textContent = T("apps.importOk", { name: app2.name });
-      toast(T("apps.importOk", { name: app2.name }), "ok");
-      show("screenApps");
-    } catch (e) {
-      $("appImportError").textContent = T("apps.importFetchFailed", { msg: errMsg(e) });
-    }
-  }
-
-  async function onImportFromFile() {
-    var file = await PS.pickJsonFile();
-    if (!file) return;
-    try {
-      var text = await file.read();
-      if (!text) { $("appImportError").textContent = T("apps.importEmptyFile"); return; }
-      $("appImportText").value = String(text);
-      onImportText();
-    } catch (e) {
-      $("appImportError").textContent = errMsg(e);
-    }
-  }
-
-  async function saveCustomApp(app) {
-    st.customApps = st.customApps.filter(function (a) { return a.id !== app.id; });
-    st.customApps.push(app);
-    await S.writeJson("apps-custom.json", { items: st.customApps });
-    renderApps();
   }
 
   /* ============================== loadHistory ============================== */
@@ -4604,6 +4295,8 @@ $("promptName").value = it ? libText(it.name) : "";
     st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
     st.tab = "apps";
     st.appFilter = "all";
+    st.hideAppsAll = false;
+    st.hideAppsFav = false;
     st.model = MODELS.defaultModel;
     st.apps = [];
     st.customApps = [];
@@ -4621,8 +4314,6 @@ $("promptName").value = it ? libText(it.name) : "";
     st.appForm = null;
     st.source = null;
     st.refs = [];
-    st.chatHistory = [];
-    st.chatMode = "image";
     st.agentModel = "";
     st.agentAllowed = null;
     st.agentHistory = [];
@@ -4649,6 +4340,18 @@ $("promptName").value = it ? libText(it.name) : "";
     $("setTokenBadge").textContent = API.hasToken() ? T("settings.tokenOk") : T("settings.tokenMissing");
     $("setTokenBadge").className = "badge " + (API.hasToken() ? "ok" : "err");
     updateSetupBadge();
+
+    var hideIds = ["hideAppsAll", "hideAppsFav"];
+    for (var hi = 0; hi < hideIds.length; hi++) {
+      var hideToggle = $(hideIds[hi]);
+      if (!hideToggle) continue;
+      var hide = hideIds[hi] === "hideAppsAll" ? !!st.hideAppsAll : !!st.hideAppsFav;
+      try { hideToggle.checked = hide; } catch (e) { /* ignore */ }
+      try {
+        if (hide) hideToggle.setAttribute("checked", "");
+        else hideToggle.removeAttribute("checked");
+      } catch (e2) { /* ignore */ }
+    }
 
     setRadio($("layerSamplingOptions"), st.prefs.sampling || "visible");
     if (st.prefs.outputMode !== "newLayer" && st.prefs.outputMode !== "replace") {
@@ -4692,9 +4395,6 @@ $("promptName").value = it ? libText(it.name) : "";
   }
 
   function renderAbout() {
-    var versionEl = $("aboutVersion");
-    if (versionEl) versionEl.textContent = "v" + VERSION;
-
     var metaEl = $("aboutMeta");
     if (metaEl) {
       metaEl.textContent = T("about.models", {
@@ -5753,21 +5453,31 @@ $("appFilters").addEventListener("click", function (ev) {
     });
     $("btnAppsMore").addEventListener("click", function () { refreshApps(true, true); });
     $("btnAppsRefresh").addEventListener("click", function () { refreshApps(true); });
-    $("btnAppsImport").addEventListener("click", function () {
-      $("appImportText").value = "";
-      $("appImportError").textContent = "";
-      $("appImportResult").textContent = "";
-      show("screenAppsImport");
-    });
-    if ($("btnImportFile")) $("btnImportFile").addEventListener("click", onImportFromFile);
-    if ($("btnImportApp")) $("btnImportApp").addEventListener("click", onImportText);
+    var hideToggles = [
+      { id: "hideAppsAll", key: "hideAppsAll", filter: "all" },
+      { id: "hideAppsFav", key: "hideAppsFav", filter: "fav" }
+    ];
+    for (var hti = 0; hti < hideToggles.length; hti++) {
+      (function (cfg) {
+        var box = $(cfg.id);
+        if (!box) return;
+        box.addEventListener("change", function () {
+          var hide = !!box.checked;
+          st[cfg.key] = hide;
+          st.prefs[cfg.key] = hide;
+          var switched = hide && st.appFilter === cfg.filter;
+          if (switched) st.appFilter = "workspace";
+          var patch = { hideAppsFilters: false };
+          patch[cfg.key] = hide;
+          if (switched) patch.appFilter = "workspace";
+          S.setPrefs(patch);
+          renderApps();
+          if (switched && API.hasToken()) refreshApps(true);
+        });
+      })(hideToggles[hti]);
+    }
     if ($("btnRunApp")) $("btnRunApp").addEventListener("click", onRunApp);
 
-    // 对话页：图像生成 / AI 对话双模式（单选组，change 由组元素统一接收）
-    if ($("chatModeOptions")) $("chatModeOptions").addEventListener("change", function () {
-      var next = radioValue($("chatModeOptions"));
-      setChatMode(next === "agent" ? "agent" : "image", true);
-    });
     if ($("chatBtnUseSelection")) $("chatBtnUseSelection").addEventListener("click", async function () {
       try {
         await captureSelectionForGenerate();
@@ -6054,10 +5764,25 @@ st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
     }
     if (st.prefs.lang) I18N.setLang(st.prefs.lang);
     st.model = MODELS.models[st.prefs.model] ? st.prefs.model : MODELS.defaultModel;
+    var legacyHideFilters = !!st.prefs.hideAppsFilters;
+    st.hideAppsAll = !!st.prefs.hideAppsAll;
+    st.hideAppsFav = !!st.prefs.hideAppsFav;
+    // 旧版只有一个「隐藏全部和收藏夹」开关：首次升级时迁移为两个独立开关。
+    if (legacyHideFilters && !st.hideAppsAll && !st.hideAppsFav) {
+      st.hideAppsAll = true;
+      st.hideAppsFav = true;
+      st.prefs.hideAppsAll = true;
+      st.prefs.hideAppsFav = true;
+      st.prefs.hideAppsFilters = false;
+      S.setPrefs({ hideAppsAll: true, hideAppsFav: true, hideAppsFilters: false });
+    }
     st.appFilter = ["all", "fav", "workspace"].indexOf(st.prefs.appFilter) >= 0 ? st.prefs.appFilter : "all";
+    // 当前选中的筛选被隐藏时回落到工作区。
+    if ((st.appFilter === "all" && st.hideAppsAll) || (st.appFilter === "fav" && st.hideAppsFav)) {
+      st.appFilter = "workspace";
+    }
     if (st.prefs.sampling !== "selected") st.prefs.sampling = "visible";
     if (st.prefs.outputMode !== "replace") st.prefs.outputMode = "newLayer";
-    st.chatMode = st.prefs.chatMode === "agent" ? "agent" : "image";
     st.agentModel = AGENT_MODEL_LABELS[st.prefs.agentModel] ? st.prefs.agentModel : "";
     try { buildModelPicker(); } catch (e) { /* ignore */ }
 
@@ -6141,13 +5866,14 @@ var ids = Object.keys(MODELS.models);
     check("models.roles", badRoles.length === 0, badRoles.join(","));
 
     // 2) DOM 结构
-    var required = ["screenSetup", "screenApps", "screenAppsImport", "screenGenerate", "screenChat", "screenAppRun", "screenSettings", "screenAbout",
+    var required = ["screenSetup", "screenApps", "screenGenerate", "screenChat", "screenAppRun", "screenSettings", "screenAbout",
       "screenAssets", "tabAssets", "btnAssetsRefresh", "assetGrid", "assetLoading", "assetEmpty", "btnAssetsMore",
       "modelTrigger", "promptInput", "btnPromptHistory", "btnPromptLibrary",
       "refImageBtn", "clearRefImagesBtn", "refImagePreviewList", "layerSamplingOptions", "outputOptions",
       "generateBtn", "error-message", "featherEdgesBtn", "featherAmountInput", "featherAmountLabel",
       "featherMinusBtn", "featherPlusBtn",
-      "appFilters", "appsList", "btnAppsSearchClear", "btnImportFile", "btnImportApp", "btnRunApp", "appRunRecovery", "footerAbout", "footerActions",
+      "appFilters", "appsList", "btnAppsSearchClear", "btnRunApp", "appRunRecovery", "footerAbout", "footerActions",
+      "hideAppsAll", "hideAppsFav",
       "btnSavePrompt", "exportResult", "exportResultTitle", "exportResultPath", "exportResultHint",
       "btnExportFolder", "btnExportClose",
       "chatPrompt", "chatSendBtn", "chatStream", "chatSourceThumb", "chatBtnPick", "chatClearBtn",
