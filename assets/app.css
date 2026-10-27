@@ -1167,8 +1167,7 @@ sp-action-button::part(button) {
 #screenSettings .apps-filter-toggles .k-toggle input[checked] + .k-toggle-box {
   background: var(--spectrum-gray-500, var(--spectrum-global-color-gray-500, #8a8a8a));
 }
-#screenSettings .apps-filter-toggles .k-toggle-box::after {
-  content: '';
+#screenSettings .apps-filter-toggles .k-toggle-tick {
   position: absolute;
   left: 4px;
   top: 1px;
@@ -1179,7 +1178,7 @@ sp-action-button::part(button) {
   transform: rotate(45deg);
   opacity: 0;
 }
-#screenSettings .apps-filter-toggles .k-toggle input[checked] + .k-toggle-box::after {
+#screenSettings .apps-filter-toggles .k-toggle input[checked] + .k-toggle-box .k-toggle-tick {
   opacity: 1;
 }
 #screenSettings .apps-filter-toggles .k-toggle input:focus + .k-toggle-box {
