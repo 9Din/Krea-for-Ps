@@ -509,7 +509,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
   /* ------------------------------------------------------------ 图标按钮
    */
   function iconSrc(name, theme) {
-    return theme === "light" ? ("./icons/ui/" + name + ".png") : ("./icons/ui/dark/" + name + ".png");
+    return theme === "light" ? ("./icons/ui/light/" + name + ".png") : ("./icons/ui/dark/" + name + ".png");
   }
 
   var ICON_PX = 12;   // 面板内图标的统一显示尺寸（源图 24×24 = 2 倍图，必须显式缩放）
@@ -656,7 +656,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       var name = img.getAttribute && img.getAttribute("data-icon");
       // 影子树里的副本可能只复制了 src、没有 data-icon；从路径反推图标名。
       if (!name && img.getAttribute) {
-        var m = String(img.getAttribute("src") || "").match(/icons\/ui\/(?:dark\/)?([^\/]+)\.png/i);
+        var m = String(img.getAttribute("src") || "").match(/icons\/ui\/(?:dark|light)\/([^\/]+)\.png/i);
         if (m) {
           name = m[1];
           isIcon = true;
@@ -5703,6 +5703,19 @@ st.prefs = JSON.parse(JSON.stringify(S.DEFAULT_PREFS));
         else if (mqTheme && mqTheme.addListener) mqTheme.addListener(onThemeChange);
       }
     } catch (e3) { /* ignore */ }
+
+    // 有些 UXP 版本既不派发 matchMedia change，也没有主题事件。
+    // 低频对比主机背景色，主题真的变化时才整批换图标，避免每次重建 img。
+    try {
+      var lastTheme = document.documentElement.getAttribute("data-theme") || "";
+      var themeTimer = setInterval(function () {
+        var nextTheme = isLightTheme() ? "light" : "dark";
+        if (nextTheme === lastTheme) return;
+        lastTheme = nextTheme;
+        try { applyIconTheme(); } catch (e4) { /* ignore */ }
+      }, 1500);
+      if (themeTimer && typeof themeTimer.unref === "function") themeTimer.unref();
+    } catch (e5) { /* ignore */ }
 
     // 5) 异步加载数据
     loadData().catch(function (e) {

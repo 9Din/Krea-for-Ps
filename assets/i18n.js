@@ -375,10 +375,13 @@ window.KREA_I18N = (function () {
     "settings.resetConfirm": ["将清除 Token、App 缓存、历史、自定义词库和缩略图缓存。确定吗？", "This clears the token, app cache, history, your custom library and the thumbnail cache. Continue?"],
     "settings.resetDone": ["已重置全部数据", "All data cleared"],
     "settings.cacheCleared": ["App 缓存已清空", "App cache cleared"],
-    "settings.apps": ["Apps 页面", "Apps page"],
+    "settings.apps": ["隐藏与显示", "Visibility"],
     "settings.hideAppsAll": ["隐藏「全部」", "Hide All"],
     "settings.hideAppsFav": ["隐藏「收藏夹」", "Hide Favourites"],
-    "settings.hideAppsFiltersHint": ["隐藏或显示Apps", "Show or hide Apps"],
+    "settings.hideAppsFiltersHint": [
+      "控制 Apps 页面筛选栏中「全部」与「收藏夹」的显示。",
+      "Show or hide the All and Favourites filters on the Apps page."
+    ],
     "settings.update": ["插件更新", "Plugin updates"],
     "settings.checkUpdate": ["检测更新", "Check for updates"],
     "settings.checkingUpdate": ["正在检测更新…", "Checking for updates…"],

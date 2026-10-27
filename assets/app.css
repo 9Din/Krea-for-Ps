@@ -18,8 +18,21 @@
   --k-border-2: var(--spectrum-alias-border-color-secondary, #3a3a3a);
   /* 操作按钮不画描边，靠填充色和文字层级区分；输入框 / 下拉框仍用 --k-border。 */
   --k-btn-border: transparent;
-  --k-text: var(--uxp-host-text-color, var(--spectrum-alias-text-color, #e1e1e1));
-  --k-text-dim: var(--spectrum-alias-text-color-disabled, #909090);
+  /* 控件固定中性色：不随 PS 各版本不同深浅的 widget 变量漂移。
+     面板底色仍用 --k-bg 跟随 Photoshop，控件层级由这组颜色统一。 */
+  --k-text: #e8e8e8;
+  --k-text-dim: #a0a0a0;
+  --k-card-bg: #303030;
+  --k-card-bg-hover: #383838;
+  --k-card-border: #3d3d3d;
+  --k-field-bg: #262626;
+  --k-field-border: #4a4a4a;
+  --k-btn-bg: #3a3a3a;
+  --k-btn-bg-hover: #474747;
+  --k-btn-bg-active: #303030;
+  --k-btn-text: #f2f2f2;
+  --k-chip-bg: #3a3a3a;
+  --k-chip-text: #b8b8b8;
   --k-blue: #1473e6;
   --k-green: #2d9d78;
   --k-red: #d7373f;
@@ -47,8 +60,19 @@ html[data-theme="light"] {
   --k-bg-3: var(--uxp-host-widget-background-color, var(--spectrum-alias-background-color-tertiary, #dedede));
   --k-border: var(--uxp-host-border-color, var(--spectrum-alias-border-color, #b6b6b6));
   --k-border-2: var(--spectrum-alias-border-color-secondary, #cfcfcf);
-  --k-text: var(--uxp-host-text-color, var(--spectrum-alias-text-color, #1f1f1f));
-  --k-text-dim: var(--spectrum-alias-text-color-disabled, #6b6b6b);
+  --k-text: #1f1f1f;
+  --k-text-dim: #646464;
+  --k-card-bg: #f7f7f7;
+  --k-card-bg-hover: #ededed;
+  --k-card-border: #d4d4d4;
+  --k-field-bg: #ffffff;
+  --k-field-border: #b9b9b9;
+  --k-btn-bg: #e2e2e2;
+  --k-btn-bg-hover: #d8d8d8;
+  --k-btn-bg-active: #cccccc;
+  --k-btn-text: #202020;
+  --k-chip-bg: #e2e2e2;
+  --k-chip-text: #4a4a4a;
   --k-ok-text: #1f6b52;
   --k-err-text: #a4262c;
   --k-warn-text: #8a4b00;
@@ -99,8 +123,8 @@ sp-action-button::part(button) { cursor: pointer; }
   font-family: inherit;
   font-size: 11px;
   color: var(--k-text);
-  background: var(--k-bg-3);
-  border: 1px solid var(--k-border);
+  background: var(--k-field-bg);
+  border: 1px solid var(--k-field-border);
   border-radius: 4px;
   padding: 3px 6px;
 }
@@ -108,21 +132,73 @@ sp-action-button::part(button) { cursor: pointer; }
   cursor: pointer;
   padding: 3px 7px;
   line-height: 1.2;
-  /* 与 Spectrum 按钮保持一致：操作按钮默认无描边 */
-  border-color: var(--k-btn-border);
+  /* 操作按钮统一为固定填充色，不画外框 */
+  color: var(--k-btn-text);
+  background: var(--k-btn-bg);
+  border: 0;
 }
-.no-spectrum button:hover { background: var(--k-bg-2); }
+.no-spectrum button:hover { background: var(--k-btn-bg-hover); }
+.no-spectrum button:active { background: var(--k-btn-bg-active); }
 .no-spectrum button:disabled { opacity: .5; cursor: default; }
+/* 下拉框 / 搜索框不是操作按钮，仍保留输入框的 1px 外框 */
+.no-spectrum .dd-trigger {
+  color: var(--k-text);
+  background: var(--k-field-bg);
+  border: 1px solid var(--k-field-border);
+}
+.no-spectrum .dd-trigger:hover { border-color: var(--k-blue); }
+.no-spectrum .search-field {
+  background: var(--k-field-bg);
+  border-color: var(--k-field-border);
+}
+.no-spectrum .search-field input { background: var(--k-field-bg); }
 /* 降级环境下过滤 chips / 步进按钮仍保持各自的紧凑尺寸 */
 .no-spectrum .chip {
   padding: 1px 7px;
   line-height: 1.3;
-  /* chips 是筛选胶囊，不是操作按钮：保留浅色描边 */
-  border-color: var(--k-border-2);
+  color: var(--k-chip-text);
+  background: var(--k-chip-bg);
+  border: 0;
 }
+.no-spectrum .chip.active { color: #fff; background: var(--k-blue); }
 .no-spectrum .chip.active:hover { background: var(--k-blue); }
-.no-spectrum .search-clear { border-color: var(--k-border); }
+.no-spectrum .search-clear { background: transparent; border: 0; }
 .no-spectrum .step-btn { padding: 0; line-height: 20px; }
+/* 选择面板的行本身就是列表项，不套按钮底色 */
+.no-spectrum .picker-item {
+  background: transparent;
+  border-color: transparent;
+  color: var(--k-text);
+}
+.no-spectrum .picker-item:hover { background: var(--k-bg-3); border-color: var(--k-border-2); }
+.no-spectrum .picker-item.sel { background: var(--k-sel-bg); border-color: var(--k-blue); }
+/* 链接 / 资产遮罩按钮保持无底色的特殊样式 */
+.no-spectrum .link,
+.no-spectrum .asset-act {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.no-spectrum .asset-act {
+  padding: 3px 5px;
+  background: #fff;
+  color: #222;
+}
+.no-spectrum .asset-act:hover { background: var(--k-blue); color: #fff; }
+.no-spectrum .asset-act.danger:hover { background: var(--k-red); }
+.no-spectrum .link { color: var(--k-blue); }
+.no-spectrum .picker-close {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.no-spectrum .remove-btn {
+  padding: 0;
+  border: 0;
+  background: #fff;
+  color: #222;
+}
+.no-spectrum .remove-btn:hover { background: var(--k-red); color: #fff; }
 .no-spectrum textarea { width: 100%; min-height: 56px; resize: vertical; }
 .no-spectrum input[type="text"],
 .no-spectrum input[type="password"],
@@ -282,19 +358,19 @@ select.k-select {
   font-size: 11px;
   line-height: 1.3;
   color: var(--k-text);
-  background: var(--k-bg-3);
-  border: 1px solid var(--k-border);
+  background: var(--k-field-bg);
+  border: 1px solid var(--k-field-border);
   border-radius: 4px;
   padding: 4px 6px;
   cursor: pointer;
 }
 select:focus { outline: 1px solid var(--k-blue); }
 optgroup { color: var(--k-text-dim); font-style: normal; font-weight: 700; }
-option { color: var(--k-text); background: var(--k-bg-3); }
+option { color: var(--k-text); background: var(--k-field-bg); }
 
 /* ============================================================ 图标（PNG）
  * 不能依赖内联 <svg>：UXP 的 SVG 渲染器官方声明只支持简单图标，实测面板里不显示。
- * 所有图标都是 icons/ui/dark/*.png（白色，深色主题）与 icons/ui/*.png（深色，浅色主题）。
+ * 所有图标都是 icons/ui/dark/*.png（白色，深色主题）与 icons/ui/light/*.png（深色，浅色主题）。
  */
 img.k-icon {
   display: block;
@@ -349,8 +425,8 @@ sp-action-button::part(button) { min-width: 0; }
   font-weight: 600;
   line-height: 1.25;
   color: var(--k-text);
-  background: var(--k-bg-3);
-  border: 1px solid var(--k-border);
+  background: var(--k-field-bg);
+  border: 1px solid var(--k-field-border);
   border-radius: 4px;
   padding: 2px 7px;
   cursor: pointer;
@@ -377,10 +453,9 @@ sp-action-button::part(button) { min-width: 0; }
   min-width: 0;
   margin: 3px 0 5px;
   padding: 3px;
-  border: 1px solid var(--k-border);
-  border-left: 3px solid var(--k-blue);
+  border: 1px solid var(--k-card-border);
   border-radius: 5px;
-  background: var(--k-bg-2);
+  background: var(--k-card-bg);
 }
 /* 面板挂进纵向字段（对话模型 / 生成模型 / App 表单 / 词库分类）时铺满该字段。
    词库分类现在也是纵向字段，选择列表不会再出现在触发按钮右侧。 */
@@ -422,9 +497,8 @@ sp-action-button::part(button) { min-width: 0; }
   display: flex;
   flex-direction: column;
   gap: 0;
-  /* 左内边距扣掉 .picker-inline 的 3px 左边框，让列表按钮左右留白一致；
-     右侧多留 1px 抵消右边框。 */
-  padding: 3px 7px 2px 5px;
+  /* 面板内边距与列表项左右留白一致 */
+  padding: 3px 5px 2px;
 }
 .picker-group {
   font-size: 9px;
@@ -747,14 +821,14 @@ sp-radio { margin: 1px 0; }
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
-  color: var(--k-text);
-  background: var(--k-bg-3);
-  border: 1px solid var(--k-btn-border);
+  color: var(--k-btn-text);
+  background: var(--k-btn-bg);
+  border: 0;
   border-radius: 4px;
   cursor: pointer;
 }
-.step-btn:hover { border-color: var(--k-btn-border); background: var(--k-bg-2); }
-.step-btn:active { background: var(--k-bg); }
+.step-btn:hover { background: var(--k-btn-bg-hover); }
+.step-btn:active { background: var(--k-btn-bg-active); }
 .feather-row .feather-input {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1096,10 +1170,46 @@ sp-action-button::part(button) {
 }
 .header .actions .tab { padding: 2px 5px; font-size: 10px; }
 
+/* 操作按钮固定填充色 + 无描边；主 CTA / 危险操作只换固定色，不再叠加边框。 */
+sp-button::part(button) {
+  border: 0 !important;
+  background: var(--k-btn-bg) !important;
+  color: var(--k-btn-text) !important;
+}
+sp-button:hover::part(button) { background: var(--k-btn-bg-hover) !important; }
+sp-button:active::part(button) { background: var(--k-btn-bg-active) !important; }
+sp-button[variant="cta"]::part(button),
+sp-button[variant="primary"]::part(button) {
+  background: var(--k-blue) !important;
+  color: #fff !important;
+}
+sp-button[variant="cta"]:hover::part(button),
+sp-button[variant="primary"]:hover::part(button) { background: #2b8bff !important; }
+sp-button[variant="warning"]::part(button) {
+  background: var(--k-red) !important;
+  color: #fff !important;
+}
+sp-button[variant="warning"]:hover::part(button) { background: #e34c54 !important; }
+sp-button[quiet]::part(button) {
+  background: transparent !important;
+  color: var(--k-text-dim) !important;
+}
+sp-button[quiet]:hover::part(button) {
+  background: var(--k-bg-2) !important;
+  color: var(--k-text) !important;
+}
+/* 图标按钮只用图标表达，不画按钮外框、不填底色 */
+sp-action-button::part(button) {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--k-text) !important;
+}
+sp-action-button:hover::part(button) { background: var(--k-bg-2) !important; }
+
 /* ------------------------------------------------------------------ 组件块 */
 .card {
-  border: 1px solid var(--k-border-2);
-  background: var(--k-bg-2);
+  border: 1px solid var(--k-card-border);
+  background: var(--k-card-bg);
   border-radius: var(--k-radius);
   padding: 8px;
 }
@@ -1121,7 +1231,7 @@ sp-action-button::part(button) {
   gap: 6px;
   margin: 2px 0 0;
 }
-.section-title .rule { flex: 1 1 auto; height: 1px; background: var(--k-border-2); }
+.section-title .rule { flex: 1 1 auto; height: 1px; background: var(--k-card-border); }
 
 /* 设置页：账户 / 行为 / 数据维护三块之间显式留白 */
 #screenSettings { gap: 0; }
@@ -1129,15 +1239,29 @@ sp-action-button::part(button) {
 #screenSettings .card + .card { margin-top: 10px; }
 #screenSettings sp-checkbox,
 #screenSettings .k-check { margin-top: 6px; }
-/* Apps 页两个独立开关：纵向排列，避免 UXP flex gap 不稳定。 */
+/* Apps 页两个独立开关：同一行排列；开关本身不画外围框。 */
 #screenSettings .apps-filter-toggles {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 #screenSettings .apps-filter-toggles sp-checkbox,
-#screenSettings .apps-filter-toggles .k-check { margin-top: 0; }
+#screenSettings .apps-filter-toggles .k-check {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--k-text);
+}
 #screenSettings .apps-filter-toggles sp-checkbox + sp-checkbox,
-#screenSettings .apps-filter-toggles .k-check + .k-check { margin-top: 2px; }
+#screenSettings .apps-filter-toggles .k-check + .k-check {
+  margin-top: 0;
+  margin-left: 14px;
+}
 
 .muted { color: var(--k-text-dim); }
 .tiny { font-size: 10px; }
@@ -1160,15 +1284,15 @@ sp-action-button::part(button) {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .02em;
-  border: 1px solid var(--k-border);
-  color: var(--k-text-dim);
-  background: var(--k-bg-3);
+  border: 0;
+  color: var(--k-chip-text);
+  background: var(--k-chip-bg);
   white-space: nowrap;
 }
-.badge.ok { color: #fff; background: var(--k-green); border-color: var(--k-green); }
-.badge.warn { color: #fff; background: var(--k-orange); border-color: var(--k-orange); }
-.badge.err { color: #fff; background: var(--k-red); border-color: var(--k-red); }
-.badge.info { color: #fff; background: var(--k-blue); border-color: var(--k-blue); }
+.badge.ok { color: #fff; background: var(--k-green); }
+.badge.warn { color: #fff; background: var(--k-orange); }
+.badge.err { color: #fff; background: var(--k-red); }
+.badge.info { color: #fff; background: var(--k-blue); }
 
 .notice {
   border-radius: var(--k-radius);
@@ -1192,9 +1316,9 @@ sp-action-button::part(button) {
 .chip {
   appearance: none;
   -webkit-appearance: none;
-  border: 1px solid var(--k-border-2);
-  background: var(--k-bg-2);
-  color: var(--k-text-dim);
+  border: 0;
+  background: var(--k-chip-bg);
+  color: var(--k-chip-text);
   font: inherit;
   font-size: 10px;
   font-weight: 600;
@@ -1204,11 +1328,10 @@ sp-action-button::part(button) {
   cursor: pointer;
   white-space: nowrap;
 }
-.chip:hover { color: var(--k-text); border-color: var(--k-border); }
+.chip:hover { color: var(--k-text); background: var(--k-btn-bg-hover); }
 .chip.active {
   color: #fff;
   background: var(--k-blue);
-  border-color: var(--k-blue);
 }
 
 /* --------------------------------------------------------------- 资产页 */
@@ -1374,16 +1497,16 @@ sp-action-button::part(button) {
   display: block;
   width: 100%;
   height: 24px;
-  border: 1px solid var(--k-border-2);
+  border: 0;
   border-radius: 4px;
-  background: var(--k-bg-2);
-  color: var(--k-text-dim);
+  background: var(--k-btn-bg);
+  color: var(--k-btn-text);
   font: inherit;
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;
 }
-.asset-more:hover { color: var(--k-text); border-color: var(--k-border); }
+.asset-more:hover { color: #fff; background: var(--k-blue); }
 
 /* 搜索框：整条搜索栏自绘边框，清空按钮作为普通 flex 子项放在输入框右侧。
    UXP 里绝对定位的兄弟节点会被输入区盖住，所以不要再用 overlay。 */
@@ -1394,10 +1517,9 @@ sp-action-button::part(button) {
   min-width: 0;
   min-height: 26px;
   padding: 0 4px 0 8px;
-  border: 1px solid var(--k-border);
+  border: 1px solid var(--k-field-border);
   border-radius: 14px;
-  /* 与面板底色一致，避免搜索栏像一块深色贴片 */
-  background: var(--k-bg);
+  background: var(--k-field-bg);
 }
 /* 搜索输入用原生 input：整条搜索栏只有外框这一条 1px 细线。
    部分 UXP 版本不暴露 Spectrum 输入框的 ::part(input)，内层边框去不掉，
@@ -1417,7 +1539,7 @@ sp-action-button::part(button) {
   -webkit-appearance: none;
   /* UXP 对原生 input 的 transparent 支持不稳，显式给同一个底色，
      否则内层可能画成纯黑，看起来和面板割裂。 */
-  background: var(--k-bg);
+  background: var(--k-field-bg);
   color: var(--k-text);
   font-family: inherit;
   font-size: 11px;
@@ -1435,7 +1557,7 @@ sp-action-button::part(button) {
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--k-bg);
+  background: var(--k-field-bg);
 }
 .search-clear {
   position: static;
@@ -1445,7 +1567,7 @@ sp-action-button::part(button) {
   margin-left: 6px;
   line-height: 14px;
   text-align: center;
-  border: 1px solid var(--k-border);
+  border: 0;
   border-radius: 50%;
   background: transparent;
   color: var(--k-text-dim);
@@ -1454,7 +1576,7 @@ sp-action-button::part(button) {
   cursor: pointer;
   user-select: none;
 }
-.search-clear:hover { color: var(--k-text); border-color: var(--k-text-dim); background: var(--k-bg-3); }
+.search-clear:hover { color: var(--k-text); background: var(--k-btn-bg-hover); }
 .search-clear:focus { outline: 1px solid var(--k-blue); outline-offset: 1px; }
 /* Apps 工具栏右上角两个纯图标按钮，和 tab 栏一样没有按钮外框 */
 .apps-tool {
@@ -1483,24 +1605,25 @@ sp-action-button::part(button) {
   align-items: flex-start;
   gap: 6px;
   padding: 6px;
-  border: 1px solid var(--k-border-2);
+  border: 1px solid var(--k-card-border);
   border-radius: var(--k-radius);
-  background: var(--k-bg-2);
+  background: var(--k-card-bg);
   cursor: pointer;
   text-align: left;
   width: 100%;
-  color: inherit;
+  color: var(--k-text);
   font: inherit;
+  font-family: inherit;
 }
-.app-item:hover { border-color: var(--k-blue); background: var(--k-bg-3); }
+.app-item:hover { border-color: var(--k-blue); background: var(--k-card-bg-hover); }
 .app-item .thumb {
   width: 36px;
   height: 36px;
   border-radius: 4px;
   flex: 0 0 auto;
   object-fit: cover;
-  background: var(--k-bg-3);
-  border: 1px solid var(--k-border-2);
+  background: var(--k-field-bg);
+  border: 1px solid var(--k-card-border);
 }
 .app-item .info { flex: 1 1 auto; min-width: 0; }
 /* 工作区徽章同时带 .info 类，会被上面的 .app-item .info 拉成整行；
@@ -1685,12 +1808,12 @@ sp-action-button::part(button) {
   width: 100%;
   margin: 0;
   padding: 4px 7px;
-  border: 1px solid var(--k-border);
+  border: 1px solid var(--k-field-border);
   border-radius: 5px;
   outline: none;
   appearance: none;
   -webkit-appearance: none;
-  background: var(--k-bg-3);
+  background: var(--k-field-bg);
   color: var(--k-text);
   font-family: inherit;
   font-size: 11px;
@@ -1714,13 +1837,13 @@ sp-action-button::part(button) {
   gap: 6px;
   cursor: pointer;
   padding: 4px 6px;
-  border: 1px solid var(--k-border-2);
+  border: 1px solid var(--k-card-border);
   border-radius: var(--k-radius);
-  background: var(--k-bg-2);
+  background: var(--k-card-bg);
   font-weight: 700;
   font-size: 10px;
 }
-.adv-toggle:hover { background: var(--k-bg-3); }
+.adv-toggle:hover { background: var(--k-card-bg-hover); }
 
 /* 列表项（历史 / 提示词库） */
 .list-item {
