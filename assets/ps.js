@@ -149,11 +149,13 @@ window.KREA_PS = (function () {
    * getPixels 的 sourceBounds 对小数 / 越界值比较敏感；统一转成文档内的整数边界。
    * 只影响读像素，不影响后续结果置入使用的原始 selection。
    */
-  function normalizeCaptureBounds(selection) {
+  function normalizeCaptureBounds(selection, doc) {
     try {
-      var doc = activeDoc();
-      var maxW = doc ? boundNumber(doc.width) : Infinity;
-      var maxH = doc ? boundNumber(doc.height) : Infinity;
+      // 生成轮询期间用户可能切到别的文档；必须按抓图时记录的 doc 收敛边界，
+      // 否则会用当前活动文档的尺寸去裁剪原文档的选区。
+      var target = doc || activeDoc();
+      var maxW = target ? boundNumber(target.width) : Infinity;
+      var maxH = target ? boundNumber(target.height) : Infinity;
       var l = boundNumber(selection.left);
       var t = boundNumber(selection.top);
       var r = boundNumber(selection.right);
@@ -310,10 +312,10 @@ window.KREA_PS = (function () {
   }
 
 
-  async function captureModern(documentID, selection, sampling, capPx) {
+  async function captureModern(documentID, selection, sampling, capPx, doc) {
     if (!psImaging) init();
     if (!psImaging) return null;
-    selection = normalizeCaptureBounds(selection);
+    selection = normalizeCaptureBounds(selection, doc);
     var size = selectionSize(selection);
     var cap = capPx || MAX_PX;
     var targetSize = null;
@@ -340,7 +342,8 @@ window.KREA_PS = (function () {
       var layer = null;
       var layerId = 0;
       if (modes[m] === "selected") {
-        var layers = psApp.activeDocument && psApp.activeDocument.activeLayers;
+        var active = doc || psApp.activeDocument;
+        var layers = active && active.activeLayers;
         if (!layers || !layers.length) {
           attempts.push("selected: no active layer");
           continue;
@@ -803,7 +806,7 @@ window.KREA_PS = (function () {
       // 在低配置机器/大画布上容易让整个窗口闪一下。现代 imaging API 在多数
       // PS 版本上不需要 modal，只有确实读不到像素时才退回 modal 重试。
       try {
-        modern = await captureModern(doc.id, bounds, sampling, capPx);
+        modern = await captureModern(doc.id, bounds, sampling, capPx, doc);
       } catch (e0) {
         console.warn("[Krea] modern capture (non-modal) failed", e0);
         diagnostics.push("modern: " + ((e0 && e0.message) ? e0.message : String(e0)));
@@ -822,7 +825,7 @@ window.KREA_PS = (function () {
       if (!modernEmpty && (!b64 || modernBlack)) {
         try {
           var modalModern = await withModal(function () {
-            return captureModern(doc.id, bounds, sampling, capPx);
+            return captureModern(doc.id, bounds, sampling, capPx, doc);
           }, "Krea Capture Selection");
           if (modalModern && modalModern.attempts) {
             diagnostics = diagnostics.concat(modalModern.attempts);
@@ -998,10 +1001,27 @@ window.KREA_PS = (function () {
             for (var i = 0; i < all.length; i++) {
               if (all[i].id === opts.docId) { doc = all[i]; break; }
             }
+            // 抓图时的原文档已关闭：绝不能悄悄落到当前文档（会把结果放进别的画布）。
+            if (!doc) throw new Error("原文档已关闭，无法置入结果");
           }
           targetDoc = doc || activeDoc();
         }
         if (!targetDoc) throw new Error("目标文档不存在");
+
+        // placeEvent / rasterize 都作用在「当前活动文档」上。生成期间用户可能切到
+        // 别的文档，因此必须先把快照里的目标文档激活，再置入并校验，绝不能只按
+        // id 找到文档却继续操作当前最前面的那个。
+        try {
+          await psAction.batchPlay([
+            { _obj: "select", _target: [{ _ref: "document", _id: targetDoc.id }] }
+          ], {});
+          if (psApp.activeDocument && psApp.activeDocument.id !== targetDoc.id) {
+            throw new Error("无法激活目标文档");
+          }
+          targetDoc = psApp.activeDocument || targetDoc;
+        } catch (eActivate) {
+          throw new Error("目标文档已关闭或无法切换，请切回原文档后重试");
+        }
 
         var prevLayerId = null;
         var prevLayer = null;

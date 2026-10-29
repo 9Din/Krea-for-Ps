@@ -53,6 +53,20 @@ silently, so installation stays a user action. The in-panel check only reports t
 new version — Creative Cloud performs the actual install when you open the
 downloaded `.ccx`. There is no in-plugin update or self-uninstall API in UXP.
 
+The manifest supports a Chinese and an English changelog. `notes` stays the
+default/Chinese text so older plugin builds keep working; `notes_en` is used when
+the panel language is English:
+
+```json
+{
+  "version": "2.4.1",
+  "notes": "中文更新说明",
+  "notes_en": "English release notes",
+  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.4.1/Krea-for-Ps-2.4.1.ccx",
+  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.4.1"
+}
+```
+
 ## App catalog sync
 
 `featured-apps.json` is a static JSON file served from the `main` branch:
@@ -109,13 +123,13 @@ to Teams) must be available.
 ## Versioning
 
 Patch numbers stay single-digit for easy verbal reference:
-`2.3.6 → 2.3.7 → 2.3.8 → 2.3.9 → 2.4.0`. Do not use `2.3.10`.
+`2.3.6 → 2.3.7 → 2.3.8 → 2.3.9 → 2.4.0 → 2.4.1`. Do not use `2.4.10`.
 
 Release naming:
 
-- Tag: `v2.4.0`
-- Title: `Krea for Ps 2.4.0`
-- Asset: `Krea-for-Ps-2.4.0.ccx`
+- Tag: `v2.4.1`
+- Title: `Krea for Ps 2.4.1`
+- Asset: `Krea-for-Ps-2.4.1.ccx`
 
 ## Source layout
 

@@ -1,7 +1,7 @@
 /* ============================================================================
  * i18n.js — 中英双语（中文为默认，跟随 Photoshop 界面语言，可手动切换）
  *   KREA_I18N.t("key", {n: 3})      取词
- *   KREA_I18N.applyDom(root)        翻译带 data-i18n / data-i18n-title / data-i18n-placeholder 的静态 DOM
+ *   KREA_I18N.applyDom(root)        翻译带 data-i18n / data-i18n-title / data-i18n-placeholder / data-i18n-aria-label 的静态 DOM
  *   KREA_I18N.fieldLabel(name, gen) 表单字段名（优先词典，其次 models.js 生成的标签）
  * ========================================================================== */
 window.KREA_I18N = (function () {
@@ -25,6 +25,10 @@ window.KREA_I18N = (function () {
     "common.na": ["—", "—"],
     "common.choose": ["请选择", "Choose"],
     "common.openFailed": ["无法打开链接，请手动复制到浏览器。", "Could not open the link. Copy it into your browser manually."],
+    "common.saveFailed": ["保存失败：{msg}", "Could not save: {msg}"],
+    "common.clearFailed": ["清空失败：{msg}", "Could not clear: {msg}"],
+    "common.restoreFailed": ["恢复失败：{msg}", "Could not restore: {msg}"],
+    "common.importFailed": ["导入失败：{msg}", "Could not import: {msg}"],
 
     /* ------------------------------------------------------------- 顶部 */
     "nav.settings": ["设置", "Settings"],
@@ -311,8 +315,8 @@ window.KREA_I18N = (function () {
     ],
     "about.fn.inputTitle": ["选区与输入", "Selection & input"],
     "about.fn.inputBody": [
-      "• 点击「生成」时实时读取当前选区，并把选区内容作为输入图。\n• 没有选区时会提示先创建选区，与原版行为一致。\n• 可为支持参考图的模型添加多张参考图；过大的图片会自动缩放到 1024px 后再发送。\n• 图生图固定使用 0.5 的编辑强度，兼顾保留原图与重绘效果。",
-      "• Reads the current selection when you click Generate and uses it as the input image.\n• No selection shows the original \"make a selection first\" error.\n• Add multiple references for models that support them; large images are scaled to 1024px before upload.\n• Image-to-image uses a fixed 0.5 strength for a balance of preservation and repainting."
+      "• 点击「生成」时实时读取当前选区，并把选区内容作为输入图。\n• 没有选区时会提示先创建选区。\n• 可为支持参考图的模型添加多张参考图；过大的图片会自动缩放到 1024px 后再发送。\n• 图生图固定使用 0.5 的编辑强度，兼顾保留原图与重绘效果。",
+      "• Reads the current selection when you click Generate and uses it as the input image.\n• No selection shows a prompt to create a selection first.\n• Add multiple references for models that support them; large images are scaled to 1024px before upload.\n• Image-to-image uses a fixed 0.5 strength for a balance of preservation and repainting."
     ],
     "about.fn.modelsTitle": ["模型", "Models"],
     "about.fn.modelsBody": [
@@ -374,6 +378,7 @@ window.KREA_I18N = (function () {
     "settings.signedOut": ["已退出，Token 已从本机移除", "Signed out; the token was removed from this machine"],
     "settings.resetConfirm": ["将清除 Token、App 缓存、历史、自定义词库和缩略图缓存。确定吗？", "This clears the token, app cache, history, your custom library and the thumbnail cache. Continue?"],
     "settings.resetDone": ["已重置全部数据", "All data cleared"],
+    "settings.resetFailed": ["部分本机数据未能清除：{msg}", "Some local data could not be cleared: {msg}"],
     "settings.cacheCleared": ["App 缓存已清空", "App cache cleared"],
     "settings.apps": ["隐藏与显示", "Visibility"],
     "settings.hideAppsAll": ["隐藏「全部」", "Hide All"],
@@ -622,6 +627,8 @@ window.KREA_I18N = (function () {
         if (tkey) node.setAttribute("title", t(tkey));
         var pkey = node.getAttribute("data-i18n-placeholder");
         if (pkey) node.setAttribute("placeholder", t(pkey));
+        var akey = node.getAttribute("data-i18n-aria-label");
+        if (akey) node.setAttribute("aria-label", t(akey));
       }
       var kids = node.childNodes;
       for (var i = 0; kids && i < kids.length; i++) visit(kids[i]);

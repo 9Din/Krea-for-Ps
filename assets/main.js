@@ -28,7 +28,7 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.4.0";
+  var VERSION = "2.4.1";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
   /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
   var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
@@ -138,6 +138,11 @@
     appsOffline: false,
     appsSource: "builtin",      // builtin | cache | remote | workspace
     appsManifestUpdatedAt: 0,
+    /* 精选 / 工作区列表分开缓存：切到工作区后不能再把公开 App 的收藏弄丢。 */
+    featuredApps: [],
+    workspaceApps: [],
+    appsSeq: 0,                 // 列表请求序号：丢弃切换 Tab 前发出的过期响应
+    appOpenSeq: 0,              // App 详情请求序号：快速连点只保留最后一次
     appFilter: "all",           // all | fav | workspace
     hideAppsAll: false,         // true = 隐藏 Apps 的「全部」筛选
     hideAppsFav: false,         // true = 隐藏 Apps 的「收藏夹」筛选
@@ -185,6 +190,7 @@
     lastGenSelection: null,
     busy: false,
     cancelFlag: false,
+    cancelAbort: null,   // 提交阶段的 AbortController：取消按钮真正中断 POST
     progressTimer: null,
     progressStartedAt: null,
     progressBase: "",
@@ -867,6 +873,12 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     if (st.screen === "screenChat") fitChatStream();
   }
 
+  /** 运行框是否已被别的长任务占用（生成 / App / Agent）。 */
+  function progressVisible() {
+    var el = $("overlayProgress");
+    return !!el && !el.classList.contains("hidden");
+  }
+
   function startProgressTimer() {
     stopProgressTimer();
     if (!st.progressStartedAt) st.progressStartedAt = Date.now();
@@ -879,35 +891,61 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     if (st.progressTimer) { clearInterval(st.progressTimer); st.progressTimer = null; }
   }
 
+  var activePicker = null;
+
+  /** 同步触发器的展开态：aria 属性同时驱动高亮样式和可访问性。 */
+  function setPickerExpanded(anchor, expanded) {
+    if (!anchor || !anchor.setAttribute) return;
+    try {
+      anchor.setAttribute("aria-expanded", expanded ? "true" : "false");
+      anchor.classList.toggle("picker-open", !!expanded);
+    } catch (e) { /* ignore */ }
+  }
+
+  function closePicker(value) {
+    var previous = activePicker;
+    activePicker = null;
+    if (previous) setPickerExpanded(previous.anchor, false);
+    var old = document.getElementById("inlinePicker");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    // 关闭/切换选择器时也要结束上一次 Promise，否则调用方的 .then
+    // 会一直挂着，后续状态更新永远不执行。
+    if (previous && typeof previous.resolve === "function") {
+      previous.resolve(value === undefined ? null : value);
+    }
+  }
+
   /**
    * 内联选择器（替代原生 select / sp-picker / 浮层）。
    *
    * 为什么内联而不是浮层：UXP **不支持 position: fixed**，浮层会被排到面板内容
    * 之后（或直接看不见），表现就是「点了没反应」。
    * 这里直接在触发按钮后面插入一个普通区块（普通文档流），纯 div + click，
-   * 任何 PS 版本都可靠。
+   * 任何 PS 版本都可靠。同一个触发器再次点击时收回。
    *
    * @param {object} opts {title, groups:[{label, items:[{value,label}]}], selected, anchor, mount}
    *        mount: 可选的“插入点元素”；面板会插到它后面。生成页用它把列表放到
    *        整个模型行下方，而不是只挂在触发器下面（避免把标签和工具按钮挤到中间）。
    * @returns Promise<value|null>
    */
-  function closePicker() {
-    var old = document.getElementById("inlinePicker");
-    if (old && old.parentNode) old.parentNode.removeChild(old);
-  }
-
   function openPicker(opts) {
+    var anchor = opts.anchor || null;
+    // 同一个触发器再点一次＝收回。必须在创建新面板前判断，
+    // 否则会变成“先关旧面板、再开一个一模一样的新面板”。
+    if (anchor && activePicker && activePicker.anchor === anchor &&
+        document.getElementById("inlinePicker")) {
+      closePicker(null);
+      return Promise.resolve(null);
+    }
+    closePicker(null);
     return new Promise(function (resolve) {
-      closePicker();
-      var anchor = opts.anchor || null;
       var panel = mk("div", { class: "picker-inline", id: "inlinePicker" });
 
       var head = mk("div", { class: "picker-head" });
       head.appendChild(mk("span", { class: "grow", text: opts.title || T("common.choose") }));
       head.appendChild(mk("button", {
         class: "picker-close", title: T("common.cancel"), text: "\u00d7",
-        on: { click: function () { closePicker(); resolve(null); } }
+        on: { click: function () { closePicker(null); } }
       }));
       panel.appendChild(head);
 
@@ -920,7 +958,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
           list.appendChild(mk("button", {
             class: "picker-item" + (isSel ? " sel" : ""),
             "data-value": String(it.value),
-            on: { click: function () { closePicker(); resolve(it.value); } }
+            on: { click: function () { closePicker(it.value); } }
           }, [
             mk("span", { class: "grow", text: it.label }),
             isSel ? mk("span", { class: "badge ok", text: "\u2713" }) : null
@@ -931,15 +969,21 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       panel.appendChild(list);
 
       var mount = (opts.mount && opts.mount.parentNode) ? opts.mount : anchor;
+      var activate = function () {
+        activePicker = { anchor: anchor, resolve: resolve };
+        setPickerExpanded(anchor, true);
+      };
       // 生成页模型选择器需要贴在下拉框正下方（左右宽度一致），直接挂进
       // .model-field 这个纵向容器，而不是插到整行之后。
       if (opts.inside && mount) {
         mount.appendChild(panel);
+        activate();
         return;
       }
       var host = (mount && mount.parentNode) ? mount.parentNode : $("body");
       if (mount && mount.nextSibling) host.insertBefore(panel, mount.nextSibling);
       else host.appendChild(panel);
+      activate();
     });
   }
 
@@ -1084,6 +1128,9 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     // 「资产」被隐藏时不允许任何路径进入资产页（包括旧偏好、设置返回和外部调用）。
     if (tab === "assets" && st.hideAssets) tab = "apps";
     st.tab = tab;
+    // st.prefs 是启动/保存 Token 后恢复页签时读取的同一份内存状态；只写磁盘
+    // 不更新它会让本次会话继续跳到旧页签。
+    st.prefs.tab = tab;
     S.setPrefs({ tab: tab });
     if (tab === "apps") {
       show("screenApps");
@@ -2114,13 +2161,52 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     return levels[levels.length - 1].value;
   }
 
-  /** 没有 resolution 枚举、改用 width/height 的模型：按输入比例放大到允许上限。 */
-  function fitSizeFields(widthField, heightField, w, h) {
+  /** 放大 / 增强类模型：终稿尺寸按 image_scaling_factor 放大，而不是沿用生成模型的最大 4K。 */
+  function isEnhanceModel(model) {
+    if (!model) return false;
+    return model.kind === "enhance" || /\/enhance\//.test(String(model.endpoint || ""));
+  }
+
+  function enhanceScalingFactor(model) {
+    var field = null;
+    var fields = (model && model.fields) || [];
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].name === "image_scaling_factor") { field = fields[i]; break; }
+    }
+    // 模型中 Topaz 的默认值是 1（等于不放大），但用户选「放大」模型就是为了放大；
+    // 这里统一至少 2 倍，并用字段自己的上下限收敛（Magnific 最低就是 2）。
+    var factor = 2;
+    var def = field && Number(field.default);
+    if (isFinite(def) && def > factor) factor = def;
+    if (field) factor = clampDim(field, factor);
+    return factor;
+  }
+
+  /** 没有 resolution 枚举、改用 width/height 的模型：按输入比例缩放到允许范围。 */
+  function fitSizeFields(widthField, heightField, w, h, opts) {
+    opts = opts || {};
+    var enhance = !!opts.enhance;
+    var factor = enhance ? Math.max(1, Number(opts.factor) || 1) : 1;
     var maxW = (widthField && typeof widthField.max === "number") ? widthField.max : Infinity;
     var maxH = (heightField && typeof heightField.max === "number") ? heightField.max : Infinity;
-    // 没有声明上限时最多送到 4K，避免 8K 画布触发后台尺寸校验。
-    var hardCap = 4096;
-    var scale = Math.min(1, hardCap / Math.max(w, h), maxW / w, maxH / h);
+    var minW = (widthField && typeof widthField.min === "number") ? widthField.min : 1;
+    var minH = (heightField && typeof heightField.min === "number") ? heightField.min : 1;
+
+    // 放大模型：width/height 是放大前的基准尺寸，最终再乘 image_scaling_factor；
+    // 因此基准图不能超过 max / factor，否则服务端算出的终稿会超限。
+    // 普通生成模型：没有声明上限时最多送到 4K，避免 8K 画布触发后台尺寸校验。
+    var targetW = w * factor;
+    var targetH = h * factor;
+    var maxScale = Math.min(maxW / targetW, maxH / targetH);
+    if (!enhance) maxScale = Math.min(maxScale, 4096 / Math.max(w, h));
+    if (!isFinite(maxScale) || maxScale <= 0) maxScale = 1;
+
+    // 先保证宽高都不低于模型下限，再用上面的 maxScale 收敛；全程只有一个 scale，
+    // 不再分别 clamp 宽 / 高，避免 400×200 这类极端比例被拉成 512×512。
+    var scale = Math.min(1, maxScale);
+    scale = Math.max(scale, minW / w, minH / h);
+    scale = Math.min(scale, maxScale);
+
     return {
       width: clampDim(widthField || {}, Math.max(1, Math.round(w * scale))),
       height: clampDim(heightField || {}, Math.max(1, Math.round(h * scale)))
@@ -2213,11 +2299,26 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       var heightField = findField("height");
       var hasAspect = !!(aspectField && body[aspectField.name] !== undefined);
       var hasResolution = !!(resolutionField && body[resolutionField.name] !== undefined);
+      var enhance = isEnhanceModel(model);
+      var factor = enhance ? enhanceScalingFactor(model) : 1;
       if (!hasAspect && !hasResolution && widthField && heightField &&
           body[widthField.name] === undefined && body[heightField.name] === undefined) {
-        var fit = fitSizeFields(widthField, heightField, w, h);
+        var fit = fitSizeFields(widthField, heightField, w, h, { enhance: enhance, factor: factor });
         body[widthField.name] = fit.width;
         body[heightField.name] = fit.height;
+      }
+
+      // 放大 / 增强模型：显式发送倍率和开关。此前这两个可选参数从未进入请求体，
+      // Topaz 的默认值 1 会让“放大”模型完全不放大。
+      if (enhance) {
+        var factorField = findField("image_scaling_factor");
+        if (factorField && body[factorField.name] === undefined) {
+          body[factorField.name] = clampDim(factorField, factor);
+        }
+        var activateField = findField("upscaling_activated");
+        if (activateField && body[activateField.name] === undefined) {
+          body[activateField.name] = true;
+        }
       }
     }
 
@@ -2347,8 +2448,12 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     var failed = false;
     showProgress(T("gen.phase.submit"), opts.title || "", true);
     startProgressTimer();
+    var submitAc = typeof AbortController === "function" ? new AbortController() : null;
+    // 取消按钮在提交阶段直接中断 POST；轮询阶段的取消仍由 isCancelled 处理。
+    st.cancelAbort = submitAc ? function () { try { submitAc.abort(); } catch (e) { /* ignore */ } } : null;
     try {
-      var jobId = await opts.submit();
+      var jobId = await opts.submit(submitAc ? submitAc.signal : undefined);
+      st.cancelAbort = null;
       setProgress(T("gen.phase.poll"), "");
       var result = await API.waitForJob(jobId, {
         intervalMs: 2500,
@@ -2393,6 +2498,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       }
       throw e;
     } finally {
+      st.cancelAbort = null;
       // keepOpen 成功时把运行框留给调用方（例如生成页还要「置入图层」）。
       if (!keepOpen || failed) stopProgressTimer();
     }
@@ -2402,12 +2508,12 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
   function handleMediaResult(primary) {
     // 失败时 tryOpenExternal 已经吞掉异常，不会触发全局致命横幅。
     tryOpenExternal(primary).then(function (ok) {
-      toast(T(ok ? "apps.mediaResult" : "apps.mediaOpenFailed"), "error");
+      toast(T(ok ? "apps.mediaResult" : "apps.mediaOpenFailed"), ok ? "ok" : "error");
     });
   }
 
-  async function placeResult(base64, title, forcedMode) {
-    var snapshot = st.lastSnapshot || { docId: null, selection: null };
+  async function placeResult(base64, title, forcedMode, snapshotOverride) {
+    var snapshot = snapshotOverride || st.lastSnapshot || { docId: null, selection: null };
     // 生成页默认使用「插入为新图层 / 替换原图层」设置；
     // App 运行页显式传 newLayer，避免沿用生成页的“替换”设置造成意外覆盖。
     var mode = forcedMode || (st.prefs.outputMode === "replace" ? "replace" : "newLayer");
@@ -2734,7 +2840,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
         title: modelLabel(st.model),
         keepOpen: true,
         preserveCancel: true,
-        submit: function () { return API.generate(st.model, body); }
+        submit: function (signal) { return API.generate(st.model, body, { signal: signal }); }
       });
       if (!out) return;
       if (!out.base64) { handleMediaResult(out.primary); return; }
@@ -2750,22 +2856,41 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     } catch (e) {
       if (e && e.code === "download") {
         // 生成已完成，只是下载失败：不要显示“整次失败”，先让用户只重试下载。
+        // 关键：这里不能 await 恢复栏。恢复 Promise 只有用户点按钮才 resolve，
+        // await 会让下面的 finally 永远执行不到，st.busy / 生成按钮被锁死。
         setGenerateError(errMsg(e));
         hideProgress();
-        var recovered = await recoverDownloadInteractive(e.primary, modelLabel(st.model), e.jobId);
-        if (recovered) {
+        // 恢复栏可能停留很久，期间用户可能又开始另一次生成并改写 st.lastSnapshot；
+        // 先冻结这次的文档 / 选区，重试成功后才不会置入到新任务的目标里。
+        var recoverySnapshot = st.lastSnapshot;
+        recoverDownloadInteractive(e.primary, modelLabel(st.model), e.jobId).then(async function (recovered) {
+          if (!recovered) return;
+          st.busy = true;
+          if (generateBtn) generateBtn.disabled = true;
           setGenerateError("");
           showProgress(T("gen.phase.place"), modelLabel(st.model), false);
           startProgressTimer();
-          var recoveredPlace = await placeResult(recovered, modelLabel(st.model));
-          if (recoveredPlace) {
-            st.genAgain = true;
-            st.lastGenShot = shot;
-            st.lastGenSelection = selection;
-            setGenerateButtonMode(true);
+          try {
+            var recoveredPlace = await placeResult(recovered, modelLabel(st.model), undefined, recoverySnapshot);
+            if (recoveredPlace) {
+              st.genAgain = true;
+              st.lastGenShot = shot;
+              st.lastGenSelection = selection;
+              setGenerateButtonMode(true);
+            }
+            pushHistory(prompt || modelLabel(st.model));
+          } catch (ePlace) {
+            setGenerateError(errMsg(ePlace));
+            handleError(ePlace, "generate-recover-place");
+          } finally {
+            st.busy = false;
+            if (generateBtn) generateBtn.disabled = false;
+            hideProgress();
+            stopProgressTimer();
           }
-          pushHistory(prompt || modelLabel(st.model));
-        }
+        }).catch(function (eRecover) {
+          handleError(eRecover, "generate-recover");
+        });
         return;
       }
       setGenerateError(errMsg(e));
@@ -2947,11 +3072,18 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     st.agentHistory.push(placeholder);
     renderChatStream();
     if (input) input.value = "";
-    showProgress(T(st.source && !st.source.blank ? "chat.agentUploading" : "chat.agentSending"), "", false);
+    showProgress(T(st.source && !st.source.blank ? "chat.agentUploading" : "chat.agentSending"), "", true);
     startProgressTimer();
+
+    var cancelledError = function () {
+      var err = new Error(T("gen.cancelled"));
+      err.code = "cancelled";
+      return err;
+    };
 
     try {
       var attachment = await agentAttachmentFromSource();
+      if (st.cancelFlag) throw cancelledError();
       var body = { prompt: prompt };
       if (st.agentSessionId) body.sessionId = st.agentSessionId;
       else body.name = AGENT_SESSION_NAME;
@@ -2964,13 +3096,17 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       submitted = true;
       st.agentSessionId = start.sessionId;
       st.agentRunId = start.runId;
+      if (st.cancelFlag) throw cancelledError();
 
       setProgress(T("chat.agentWaiting"), llmLabel(st.agentModel));
       var startedAt = Date.now();
       var wait = null;
       while (true) {
+        // 不再等满 10 分钟：用户点取消后立即离开等待循环，保留 sessionId 以便追问。
+        if (st.cancelFlag) throw cancelledError();
         wait = await API.waitForAgentSession(st.agentSessionId, st.agentRunId, AGENT_WAIT_SECONDS);
         if (wait && wait.finished) break;
+        if (st.cancelFlag) throw cancelledError();
         var waited = Math.round((Date.now() - startedAt) / 1000);
         if (Date.now() - startedAt > AGENT_MAX_WAIT_MS) {
           var timeoutErr = new Error(T("chat.agentTimeout"));
@@ -2993,8 +3129,14 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     } catch (e) {
       placeholder.pending = false;
       placeholder.role = "error";
+      var wasCancelled = !!(e && e.code === "cancelled");
 
-      if (e && e.status === 403) {
+      if (wasCancelled) {
+        // 用户主动停止：保留这轮对话（已拿到 sessionId 时还能继续追问），
+        // 不要显示成红色错误，也不要清空 Agent 会话。
+        placeholder.role = "assistant";
+        placeholder.text = T("chat.agentStopped");
+      } else if (e && e.status === 403) {
         if (Array.isArray(e.allowedModels) && e.allowedModels.length) st.agentAllowed = e.allowedModels.slice();
         st.agentModel = "";
         S.setPrefs({ agentModel: "" });
@@ -3150,10 +3292,27 @@ var FEATURED_APPS = [
     return app;
   }
 
+  /** 工作区接口返回的条目可能没带 scope；缓存后仍按工作区展示。 */
+  function normalizeWorkspaceApps(list) {
+    return (list || []).map(function (raw) {
+      if (!raw) return null;
+      return normalizeApp(Object.assign({}, raw, { scope: raw.scope || "workspace" }));
+    }).filter(Boolean);
+  }
+
   function mergeApps() {
     var map = {};
     st.customApps.forEach(function (a) { if (a && a.id) map[a.id] = a; });
-    st.apps.forEach(function (a) { if (a && a.id) map[a.id] = a; });
+    // 收藏夹要同时看到精选和工作区里收藏过的 App；「全部」只合并精选，
+    // 避免工作区接口返回的 public 条目从缓存里漏进公开列表。
+    if (st.appFilter !== "workspace") {
+      (st.featuredApps || []).forEach(function (a) { if (a && a.id) map[a.id] = a; });
+    }
+    if (st.appFilter === "workspace" || st.appFilter === "fav") {
+      (st.workspaceApps || []).forEach(function (a) { if (a && a.id) map[a.id] = a; });
+    }
+    // st.apps 只是上面两份目录之一的镜像；不再单独合并，避免切 Tab / 刷新失败时
+    // 把工作区列表里的 public 条目漏进「全部」。
     return Object.keys(map).map(function (k) { return map[k]; });
   }
 
@@ -3478,6 +3637,7 @@ var more = $("btnAppsMore");
    */
   async function refreshApps(interactive, append) {
     if (!API.hasToken()) { show("screenSetup"); return; }
+    var seq = ++st.appsSeq;
     var status = $("appsStatus");
     if (interactive && !append) {
       clear(status);
@@ -3545,22 +3705,34 @@ var more = $("btnAppsMore");
         }
         hasMore = false;
       }
-      var merged = append ? st.apps.concat(items) : items;
+      if (seq !== st.appsSeq) return;   // 已切换 Tab / 再次刷新，丢弃过期响应
+      var prev = owner === "workspace" ? (st.workspaceApps || []) : (st.featuredApps || []);
+      var prepared = owner === "workspace" ? normalizeWorkspaceApps(items) : items;
+      var merged = append ? prev.concat(prepared) : prepared;
       var seen = {};
-      st.apps = merged.map(normalizeApp).filter(function (a) {
+      var normalized = merged.map(normalizeApp).filter(function (a) {
         if (!a || seen[a.id]) return false;
         seen[a.id] = 1;
         return true;
       });
-      st.appsCursor = owner === "workspace" && page ? (page.next_cursor || null) : null;
-      st.appsHasMore = hasMore;
-      st.appsFetchedAt = fetchedAt;
-      st.appsError = null;
+      // 两份目录永远分开保存；st.apps 只代表当前 Tab 的列表。
+      if (owner === "workspace") st.workspaceApps = normalized;
+      else st.featuredApps = normalized;
+
+      var activeOwner = st.appFilter === "workspace" ? "workspace" : "featured";
+      if (activeOwner === owner) {
+        st.apps = normalized;
+        st.appsCursor = owner === "workspace" && page ? (page.next_cursor || null) : null;
+        st.appsHasMore = hasMore;
+        st.appsFetchedAt = fetchedAt;
+        st.appsError = null;
+      }
       if (!append && owner === "workspace") {
         await S.writeJson(APPS_CACHE, { items: items, savedAt: fetchedAt, owner: owner });
       }
       renderApps();
     } catch (e) {
+      if (seq !== st.appsSeq) return;
       st.appsError = T("apps.fetchFailed", { msg: errMsg(e) });
       if (interactive) toast(st.appsError, "error");
       renderApps();
@@ -3575,34 +3747,39 @@ var more = $("btnAppsMore");
     var cache = caches[0];
     var featured = caches[1];
     var currentOwner = st.appFilter === "workspace" ? "workspace" : "featured";
-    var raw = null;
-    var savedAt = 0;
-    var source = "builtin";
 
-    if (currentOwner === "workspace" && cache && cache.owner === "workspace" && Array.isArray(cache.items)) {
-      raw = cache.items;
-      savedAt = cache.savedAt || 0;
-      source = "workspace";
-    } else if (featured && Array.isArray(featured.items) && featured.items.length) {
-      raw = featured.items;
-      savedAt = featured.savedAt || 0;
-      source = "cache";
+    // 工作区 / 精选分别从各自的缓存恢复；旧版 apps-cache.json 没有 owner 字段时，
+    // 只有当前 Tab 是工作区才把它当成工作区列表。
+    var workspaceRaw = null;
+    if (cache && Array.isArray(cache.items) &&
+        (cache.owner === "workspace" || (!cache.owner && currentOwner === "workspace"))) {
+      workspaceRaw = cache.items;
+    }
+    st.workspaceApps = normalizeWorkspaceApps(workspaceRaw);
+
+    var featuredRaw = null;
+    var featuredSavedAt = 0;
+    if (featured && Array.isArray(featured.items) && featured.items.length) {
+      featuredRaw = featured.items;
+      featuredSavedAt = featured.savedAt || 0;
     } else if (cache && cache.owner === "featured" && Array.isArray(cache.items) && cache.items.length) {
       // v2.3.7 之前的精选缓存（当时还没有 apps-featured.json）。
-      raw = cache.items;
-      savedAt = cache.savedAt || 0;
-      source = "cache";
-    } else if (currentOwner === "workspace" && cache && Array.isArray(cache.items)) {
-      // 旧缓存没有 owner 字段时可能是工作区列表，先作为占位。
-      raw = cache.items;
-      savedAt = cache.savedAt || 0;
-      source = "workspace";
+      featuredRaw = cache.items;
+      featuredSavedAt = cache.savedAt || 0;
+    }
+    if (!featuredRaw) featuredRaw = FEATURED_APPS;
+    st.featuredApps = publicFeaturedApps(featuredRaw.map(normalizeApp).filter(Boolean));
+    if (!st.featuredApps.length) {
+      st.featuredApps = publicFeaturedApps(FEATURED_APPS.map(normalizeApp).filter(Boolean));
     }
 
-    var initial = (raw || FEATURED_APPS).map(normalizeApp).filter(Boolean);
-    st.apps = source === "workspace" ? initial : publicFeaturedApps(initial);
-    st.appsFetchedAt = savedAt;
-    st.appsSource = raw ? source : "builtin";
+    st.apps = currentOwner === "workspace" ? st.workspaceApps.slice() : st.featuredApps.slice();
+    st.appsFetchedAt = currentOwner === "workspace"
+      ? (workspaceRaw ? (cache.savedAt || 0) : 0)
+      : featuredSavedAt;
+    st.appsSource = currentOwner === "workspace"
+      ? (workspaceRaw ? "workspace" : "builtin")
+      : (featuredRaw && featuredRaw !== FEATURED_APPS ? "cache" : "builtin");
     st.appsOffline = false;
     if (featured && featured.manifestUpdatedAt) {
       st.appsManifestUpdatedAt = featured.manifestUpdatedAt;
@@ -3628,6 +3805,7 @@ if (st.prefs.favorites && !st.prefs.pinned) st.prefs.pinned = st.prefs.favorites
   }
 
   async function openApp(app) {
+    var openSeq = ++st.appOpenSeq;
     st.currentApp = app;
     // 拉取 schema 期间表单还没重建；先清空，避免“运行”误读上一个 App 的字段。
     st.appForm = null;
@@ -3653,6 +3831,7 @@ if (st.prefs.favorites && !st.prefs.pinned) st.prefs.pinned = st.prefs.favorites
       for (var ci = 0; ci < candidates.length && !def.input_openapi_schema; ci++) {
         try {
           var fetched = await API.getApp(candidates[ci]);
+          if (openSeq !== st.appOpenSeq) return;
           var fetchedApp = normalizeApp(fetched);
           if (fetchedApp) {
             // 详情接口可能只返回一个子集：保留列表里的 id / source；
@@ -3661,9 +3840,12 @@ if (st.prefs.favorites && !st.prefs.pinned) st.prefs.pinned = st.prefs.favorites
             if (!def.node_app_version_id) def.node_app_version_id = app.node_app_version_id || null;
             // 只回填当前列表里的 schema（本次会话不再重复请求），
             // 不能把官网精选 App 混进 apps-custom.json，否则它会被当成导入的 JSON App。
-            for (var ai = 0; ai < st.apps.length; ai++) {
-              if (st.apps[ai].id === app.id) { st.apps[ai] = Object.assign({}, st.apps[ai], def); break; }
-            }
+            var lists = [st.featuredApps, st.workspaceApps, st.apps];
+            lists.forEach(function (list) {
+              for (var ai = 0; list && ai < list.length; ai++) {
+                if (list[ai].id === app.id) { list[ai] = Object.assign({}, list[ai], def); break; }
+              }
+            });
             if (app.source === "custom") {
               st.customApps = st.customApps.filter(function (a) { return a.id !== app.id; });
               st.customApps.push(Object.assign({}, def, { id: app.id, source: "custom" }));
@@ -3677,6 +3859,7 @@ if (st.prefs.favorites && !st.prefs.pinned) st.prefs.pinned = st.prefs.favorites
         }
       }
     }
+    if (openSeq !== st.appOpenSeq) return;
     st.currentApp = def;
     $("appRunHint").textContent = "";
 
@@ -3791,7 +3974,7 @@ out.sort(function (a, b) {
     try {
       var out = await runPipeline({
         title: app.name,
-        submit: function () { return API.executeApp(app.id, body, app.node_app_version_id); }
+        submit: function (signal) { return API.executeApp(app.id, body, app.node_app_version_id, { signal: signal }); }
       });
       if (!out) return;
       if (!out.base64) { handleMediaResult(out.primary); return; }
@@ -3850,8 +4033,17 @@ out.sort(function (a, b) {
 
   async function onClearHistory() {
     if (!(await confirmSheet(T("history.clearConfirm")))) return;
+    var previous = st.history.slice();
     st.history = [];
-    await S.writeJson(HISTORY_FILE, []);
+    try {
+      await S.writeJson(HISTORY_FILE, []);
+    } catch (e) {
+      // 写盘失败不能抛出：事件处理里的未捕获 rejection 会触发全局红色初始化横幅。
+      st.history = previous;
+      renderHistory();
+      toast(T("common.clearFailed", { msg: errMsg(e) }), "error");
+      return;
+    }
     renderHistory();
     toast(T("history.cleared"), "ok");
   }
@@ -4001,6 +4193,7 @@ out.sort(function (a, b) {
             if (!st.library[cat].length) delete st.library[cat];
             S.writeJson(LIBRARY_FILE, st.library).catch(function (e) {
               console.warn("[Krea for Ps] 保存词库失败", e);
+              toast(T("common.saveFailed", { msg: errMsg(e) }), "error");
             });
             renderLibrary();
             toast(T("library.deleted"), "ok");
@@ -4137,6 +4330,7 @@ $("promptName").value = it ? libText(it.name) : "";
     var cat = newCat || st.editCategory || Object.keys(st.library)[0] || "自定义";
     if (!name) { $("promptError").textContent = T("library.nameRequired"); return; }
     if (!body) { $("promptError").textContent = T("library.bodyRequired"); return; }
+    var snapshot = JSON.parse(JSON.stringify(st.library));
     if (!st.library[cat]) st.library[cat] = [];
     if (st.libEditing && st.libEditing.idx >= 0) {
       var oldCat = st.library[st.libEditing.cat];
@@ -4150,7 +4344,15 @@ $("promptName").value = it ? libText(it.name) : "";
     } else {
       st.library[cat].push({ name: name, prompt: body });
     }
-    await S.writeJson(LIBRARY_FILE, st.library);
+    try {
+      await S.writeJson(LIBRARY_FILE, st.library);
+    } catch (e) {
+      st.library = snapshot;
+      var saveMsg = T("common.saveFailed", { msg: errMsg(e) });
+      try { $("promptError").textContent = saveMsg; } catch (e2) { /* ignore */ }
+      toast(saveMsg, "error");
+      return;
+    }
     renderLibrary();
     show("screenLibrary");
     toast(T("library.saved"), "ok");
@@ -4158,15 +4360,30 @@ $("promptName").value = it ? libText(it.name) : "";
 
   async function onRestoreLibrary() {
     if (!(await confirmSheet(T("library.restoreConfirm")))) return;
+    var snapshot = JSON.parse(JSON.stringify(st.library));
     st.library = JSON.parse(JSON.stringify(DEFAULT_LIBRARY));
-    await S.writeJson(LIBRARY_FILE, st.library);
+    try {
+      await S.writeJson(LIBRARY_FILE, st.library);
+    } catch (e) {
+      st.library = snapshot;
+      renderLibrary();
+      toast(T("common.restoreFailed", { msg: errMsg(e) }), "error");
+      return;
+    }
     renderLibrary();
     toast(T("library.restored"), "ok");
   }
 
   async function onImportLibrary() {
-    var file = await PS.pickJsonFile();
+    var file = null;
+    try {
+      file = await PS.pickJsonFile();
+    } catch (ePick) {
+      toast(T("common.importFailed", { msg: errMsg(ePick) }), "error");
+      return;
+    }
     if (!file) return;
+    var snapshot = JSON.parse(JSON.stringify(st.library));
     try {
       var text = await file.read();
       var data = JSON.parse(String(text));
@@ -4181,11 +4398,20 @@ $("promptName").value = it ? libText(it.name) : "";
         });
       }
       if (!count) { toast(T("library.importEmpty"), "error"); return; }
-      await S.writeJson(LIBRARY_FILE, st.library);
+      try {
+        await S.writeJson(LIBRARY_FILE, st.library);
+      } catch (eSave) {
+        st.library = snapshot;
+        renderLibrary();
+        toast(T("common.importFailed", { msg: errMsg(eSave) }), "error");
+        return;
+      }
       renderLibrary();
       toast(T("library.imported", { n: count }), "ok");
     } catch (e) {
-      toast(errMsg(e), "error");
+      st.library = snapshot;
+      renderLibrary();
+      toast(T("common.importFailed", { msg: errMsg(e) }), "error");
     }
   }
 
@@ -4289,14 +4515,12 @@ $("promptName").value = it ? libText(it.name) : "";
   async function clearAllLocalData() {
     var firstError = null;
     try { await S.clearToken(); } catch (e) { firstError = e; }
-    await S.removeFile(APPS_CACHE);
-    await S.removeFile(FEATURED_CACHE);
-    await S.removeFile("apps-custom.json");
-    await S.removeFile(HISTORY_FILE);
-    await S.removeFile(LIBRARY_FILE);
-    await S.removeFile("krea-output.png");
-    await S.removeFile("storage-status.json");
-    try { await S.resetPrefs(); } catch (e) { firstError = firstError || e; }
+    var files = [APPS_CACHE, FEATURED_CACHE, "apps-custom.json", HISTORY_FILE, LIBRARY_FILE,
+      "krea-output.png", "storage-status.json"];
+    for (var i = 0; i < files.length; i++) {
+      try { await S.removeFile(files[i]); } catch (eFile) { firstError = firstError || eFile; }
+    }
+    try { await S.resetPrefs(); } catch (ePrefs) { firstError = firstError || ePrefs; }
     try {
       localStorage.removeItem("krea.ps.lang");
       localStorage.removeItem("krea.ps.uiLang");
@@ -4313,8 +4537,17 @@ $("promptName").value = it ? libText(it.name) : "";
     st.hideAppsFav = false;
     st.hideAssets = false;
     st.model = MODELS.defaultModel;
+    // 递增序号让重置前发出的列表 / App 详情请求失效，避免它们稍后写回旧账号数据。
+    st.appsSeq++;
+    st.appOpenSeq++;
     st.apps = [];
+    st.featuredApps = [];
+    st.workspaceApps = [];
     st.customApps = [];
+    st.appQuery = "";
+    var appsSearch = $("appsSearch");
+    if (appsSearch) appsSearch.value = "";
+    try { syncSearchClear(); } catch (eSearch) { /* ignore */ }
     st.appsFetchedAt = 0;
     st.appsError = null;
     st.appsOffline = false;
@@ -4336,6 +4569,8 @@ $("promptName").value = it ? libText(it.name) : "";
     st.agentRunId = null;
     st.lastSnapshot = null;
     st.genAgain = false;
+    st.cancelFlag = false;
+    st.cancelAbort = null;
     st.lastGenShot = null;
     st.lastGenSelection = null;
     st.lastExportPath = "";
@@ -4438,11 +4673,46 @@ $("promptName").value = it ? libText(it.name) : "";
   /* ============================== 更新检查 ============================== */
   var updateState = { checking: false, notified: false };
 
-  /** 取出每一段数字，"v2.3.4-beta" -> [2, 3, 4]。 */
+  /** 取出主版本数字，忽略预发布后缀："v2.3.4-beta" -> [2, 3, 4]。 */
   function versionParts(value) {
-    var nums = String(value || "").trim().replace(/^v/i, "").match(/\d+/g);
+    var core = String(value || "").trim().replace(/^v/i, "").split(/[-+]/)[0];
+    var nums = core.match(/\d+/g);
     if (!nums) return [];
     return nums.map(function (n) { return parseInt(n, 10); });
+  }
+
+  function versionPrerelease(value) {
+    var raw = String(value || "").trim().replace(/^v/i, "").split("+")[0];
+    var dash = raw.indexOf("-");
+    if (dash < 0) return "";
+    return raw.slice(dash + 1).trim();
+  }
+
+  function comparePrerelease(a, b) {
+    if (!a && !b) return 0;
+    // 正式版永远高于同版本的预发布版。
+    if (!a) return 1;
+    if (!b) return -1;
+    var x = a.split(".");
+    var y = b.split(".");
+    var len = Math.max(x.length, y.length);
+    for (var i = 0; i < len; i++) {
+      var xv = x[i];
+      var yv = y[i];
+      if (xv === undefined) return -1;
+      if (yv === undefined) return 1;
+      var xn = /^\d+$/.test(xv);
+      var yn = /^\d+$/.test(yv);
+      if (xn && yn) {
+        var d = parseInt(xv, 10) - parseInt(yv, 10);
+        if (d) return d > 0 ? 1 : -1;
+      } else if (xn !== yn) {
+        return xn ? -1 : 1;   // 数字标识符小于字母标识符（SemVer）
+      } else if (xv !== yv) {
+        return xv > yv ? 1 : -1;
+      }
+    }
+    return 0;
   }
 
   /** 逐段按数字比较；字符串直接比会把 "2.3.9" 判成比 "2.3.10" 新。 */
@@ -4455,7 +4725,7 @@ $("promptName").value = it ? libText(it.name) : "";
       var yv = y[i] || 0;
       if (xv !== yv) return xv > yv ? 1 : -1;
     }
-    return 0;
+    return comparePrerelease(versionPrerelease(a), versionPrerelease(b));
   }
 
   /** 只允许 https 的 GitHub 地址，避免 update.json 被改成任意链接。 */
@@ -4531,6 +4801,22 @@ $("promptName").value = it ? libText(it.name) : "";
   }
 
   /**
+   * update.json 的更新说明支持中英双语：
+   *   notes      —— 中文（旧版客户端也能正常显示）
+   *   notes_en   —— 英文（旧版客户端会忽略这个字段）
+   * 没有对应语言时回退到另一种，避免更新弹窗空白。
+   */
+  function updateNotesFor(info, lang) {
+    info = info || {};
+    var pick = function (value) {
+      return typeof value === "string" ? value.trim() : "";
+    };
+    var zh = pick(info.notes_zh) || pick(info.notes);
+    var en = pick(info.notes_en) || pick(info.notesEn);
+    return (lang === "en" ? (en || zh) : (zh || en));
+  }
+
+  /**
    * 检测更新。
    *   checkForUpdates()                —— 设置里手动点，失败会提示原因；
    *   checkForUpdates({silent:true})   —— 启动时静默检查，失败不打扰用户，
@@ -4563,12 +4849,17 @@ $("promptName").value = it ? libText(it.name) : "";
         bad.code = "bad_manifest";
         throw bad;
       }
+      if (versionPrerelease(latest) && !versionPrerelease(VERSION)) {
+        // 稳定版用户不接收预发布版本，即使它的主版本号更大。
+        if (!silent) toast(T("about.upToDate", { version: VERSION }), "ok");
+        return;
+      }
       if (compareVersions(latest, VERSION) <= 0) {
         if (!silent) toast(T("about.upToDate", { version: VERSION }), "ok");
         return;
       }
 
-      var notes = String(info.notes || "").trim();
+      var notes = updateNotesFor(info, I18N.lang());
       if (silent) {
         if (!updateState.notified) {
           updateState.notified = true;
@@ -4650,19 +4941,21 @@ $("promptName").value = it ? libText(it.name) : "";
   async function onSaveToken() {
     var value = tokenFieldValue();
     if (!value) { toast(T("setup.tokenRequired"), "error"); return; }
-    showProgress(T("setup.verifying"), "", false);
+    // 设置页保存 Token 时若生成/Agent 正在跑，绝不能复用并随后关掉共用的运行框。
+    var ownProgress = !progressVisible();
+    if (ownProgress) showProgress(T("setup.verifying"), "", false);
     API.setToken(value);
     try {
       var ok = await API.verifyToken();
       if (!ok) throw new Error(T("setup.testEmpty"));
     } catch (e) {
-      hideProgress();
+      if (ownProgress) hideProgress();
       API.setToken(st.token || null);
       setSetupNotice(T("setup.verifyBad", { msg: errMsg(e) }), "error");
       toast(T("setup.verifyBad", { msg: errMsg(e) }), "error");
       return;
     }
-    hideProgress();
+    if (ownProgress) hideProgress();
     try {
       await S.setToken(value);
     } catch (e2) {
@@ -4686,7 +4979,8 @@ $("promptName").value = it ? libText(it.name) : "";
     await renderSettings();
     toast(T("setup.saved"), "ok");
     if (!st.apps.length) refreshApps(true);
-    showTab(st.prefs.tab || "apps");
+    // 首次保存 / 更换 Token 后回到 Apps 页；启动时的后台恢复仍使用偏好里的页签。
+    showTab("apps");
     updateHeader();
   }
 
@@ -5200,7 +5494,8 @@ $("promptName").value = it ? libText(it.name) : "";
     if (item.media !== "image") { toast(T("assets.noUrl"), "error"); return; }
     if (btn) btn.disabled = true;
     var b64 = null;
-    showProgress(T("assets.downloading"), item.title || "", false);
+    var ownProgress = !progressVisible();
+    if (ownProgress) showProgress(T("assets.downloading"), item.title || "", false);
     try {
       var url = await refreshResultUrl(item.url, item.id);
       if (!url) throw new Error(T("assets.noUrl"));
@@ -5228,7 +5523,7 @@ $("promptName").value = it ? libText(it.name) : "";
       if (savedPath) toast(T("assets.placeFailedSaved", { path: savedPath }), "error");
       else handleError(e, "assets.place");
     } finally {
-      hideProgress();
+      if (ownProgress) hideProgress();
       if (btn) btn.disabled = false;
     }
   }
@@ -5428,6 +5723,10 @@ $("btnClearHistory").addEventListener("click", onClearHistory);
 
     $("btnProgressCancel").addEventListener("click", function () {
       st.cancelFlag = true;
+      // 提交阶段的 POST 还没返回时，直接中断 HTTP；轮询阶段由 waitForJob 检查上面的标记。
+      if (typeof st.cancelAbort === "function") {
+        try { st.cancelAbort(); } catch (e) { /* ignore */ }
+      }
       $("btnProgressCancel").disabled = true;
       $("btnProgressCancel").textContent = T("gen.cancelling");
     });
@@ -5478,12 +5777,18 @@ $("appFilters").addEventListener("click", function (ev) {
       (function (cfg) {
         var box = $(cfg.id);
         if (!box) return;
-        box.addEventListener("change", function () {
-          var hide = !!box.checked;
+        var syncToggleAttr = function () {
           try {
-            if (hide) box.setAttribute("checked", "");
+            if (box.checked) box.setAttribute("checked", "");
             else box.removeAttribute("checked");
           } catch (e) { /* ignore */ }
+        };
+        // UXP 对原生 checkbox 的事件派发不稳：click / change 都同步一次属性，
+        // 让 [checked] 选择器在两种实现下都能画出勾选态。
+        box.addEventListener("click", syncToggleAttr);
+        box.addEventListener("change", function () {
+          var hide = !!box.checked;
+          syncToggleAttr();
           st[cfg.key] = hide;
           st.prefs[cfg.key] = hide;
           var switched = !!(cfg.filter && hide && st.appFilter === cfg.filter);
@@ -5580,6 +5885,14 @@ $("appFilters").addEventListener("click", function (ev) {
       API.setToken(null);
       st.token = null;
       st.apps = [];
+      // 换账号后不能继续沿用上一账号的 Agent 会话 / 对话 / 上传图片。
+      st.agentHistory = [];
+      st.agentSessionId = null;
+      st.agentRunId = null;
+      st.agentAllowed = null;
+      st.agentModel = "";
+      st.source = null;
+      st.refs = [];
       // 退出登录后不保留上一个账号的生成历史缩略图（只清内存）。
       resetAssetHistory();
       setupReturn = "screenSettings";
@@ -5614,7 +5927,7 @@ $("appFilters").addEventListener("click", function (ev) {
       try {
         await clearAllLocalData();
       } catch (e) {
-        toast(T("err.generic", { msg: errMsg(e) }), "error");
+        toast(T("settings.resetFailed", { msg: errMsg(e) }), "error");
         return;
       }
       resetSessionAfterClear();
@@ -6002,6 +6315,7 @@ check("api.token", API.hasToken(), API.hasToken() ? "ok" : "not configured");
     buildGenerateBody: buildGenerateBody,
     compareVersions: compareVersions,
     safeUpdateUrl: safeUpdateUrl,
+    updateNotesFor: updateNotesFor,
     checkForUpdates: checkForUpdates,
     teamsContactUrl: teamsContactUrl,
     validateRequired: validateRequired,

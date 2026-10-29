@@ -335,6 +335,8 @@ sp-action-button::part(button) { min-width: 0; }
   cursor: pointer;
 }
 .dd-trigger:hover { border-color: var(--k-blue); }
+.dd-trigger[aria-expanded="true"] { border-color: var(--k-blue); }
+.dd-trigger[aria-expanded="true"] .dd-caret { transform: rotate(180deg); }
 .dd-trigger .grow { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .dd-trigger .dd-caret { flex: 0 0 auto; opacity: .7; font-size: 9px; }
 .model-trigger { font-weight: 700; }
@@ -1139,7 +1141,7 @@ sp-action-button::part(button) {
 }
 /* 原生 checkbox 只保留语义和键盘行为，视觉完全由 .k-toggle-box 承担。
    透明 input 铺满整个标签，保证点方框或文字都能切换。 */
-#screenSettings .apps-filter-toggles .k-toggle input[type='checkbox'] {
+#screenSettings .apps-filter-toggles .k-toggle input[type=checkbox] {
   position: absolute;
   left: 0;
   top: 0;
@@ -1164,8 +1166,9 @@ sp-action-button::part(button) {
   border-radius: 3px;
   background: var(--spectrum-alias-border-color, #4a4a4a);
 }
+#screenSettings .apps-filter-toggles .k-toggle input:checked + .k-toggle-box,
 #screenSettings .apps-filter-toggles .k-toggle input[checked] + .k-toggle-box {
-  background: var(--spectrum-gray-500, var(--spectrum-global-color-gray-500, #8a8a8a));
+  background: #8a8a8a;
 }
 #screenSettings .apps-filter-toggles .k-toggle-tick {
   position: absolute;

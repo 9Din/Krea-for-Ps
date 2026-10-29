@@ -20,7 +20,10 @@ window.KREA_API = (function () {
   "use strict";
 
   var BASE = "https://api.krea.ai";
-  var DEFAULT_TIMEOUT = 300000;   // 5 分钟
+  var DEFAULT_TIMEOUT = 300000;   // 5 分钟（单次 HTTP 请求）
+  /* 轮询任务单独给更长的上限：Krea 排队 + 生成经常超过 5 分钟，提前放弃会
+     让用户重试并重复提交/扣费。30 分钟仍未完成才提示超时。 */
+  var JOB_TIMEOUT = 30 * 60 * 1000;
   var POLL_TIMEOUT = 30000;       // 单次轮询
   var TERMINAL = { completed: 1, failed: 1, cancelled: 1 };
   var RUNNING = {
@@ -90,6 +93,12 @@ window.KREA_API = (function () {
     var ac = new AbortController();
     var ms = timeoutMs || DEFAULT_TIMEOUT;
     var timedOut = false;
+    var cancelled = false;
+    var onExternalAbort = function () { cancelled = true; try { ac.abort(); } catch (e) { /* ignore */ } };
+    if (opts.signal) {
+      if (opts.signal.aborted) throw ApiError("已取消", 0, "cancelled");
+      try { opts.signal.addEventListener("abort", onExternalAbort); } catch (e) { /* ignore */ }
+    }
     // 定时器要覆盖到响应体读完：只等响应头会让卡住的响应一直挂着。
     var timer = setTimeout(function () { timedOut = true; ac.abort(); }, ms);
     var headers = { Authorization: "Bearer " + token };
@@ -105,6 +114,8 @@ window.KREA_API = (function () {
       });
     } catch (e) {
       clearTimeout(timer);
+      if (opts.signal) { try { opts.signal.removeEventListener("abort", onExternalAbort); } catch (eRm) { /* ignore */ } }
+      if (cancelled) throw ApiError("已取消", 0, "cancelled");
       if (timedOut || (e && (e.name === "AbortError" || /abort/i.test(String(e.message))))) {
         throw ApiError("Krea API 请求超时（" + Math.round(ms / 1000) + "s）", 0, "timeout");
       }
@@ -115,12 +126,17 @@ window.KREA_API = (function () {
     try {
       text = await res.text();
     } catch (e) {
+      if (cancelled) throw ApiError("已取消", 0, "cancelled");
       if (timedOut) {
         throw ApiError("Krea API 请求超时（" + Math.round(ms / 1000) + "s）", 0, "timeout");
       }
       throw ApiError("读取 Krea API 响应失败：" + (e && e.message ? e.message : String(e)), 0, "network");
     } finally {
       clearTimeout(timer);
+      if (opts.signal) { try { opts.signal.removeEventListener("abort", onExternalAbort); } catch (eRm2) { /* ignore */ } }
+    }
+    if (cancelled) {
+      throw ApiError("已取消", 0, "cancelled");
     }
     if (timedOut) {
       throw ApiError("Krea API 请求超时（" + Math.round(ms / 1000) + "s）", 0, "timeout");
@@ -148,11 +164,12 @@ window.KREA_API = (function () {
     return payload.job_id || payload.id || null;
   }
 
-  async function generate(modelId, body) {
+  async function generate(modelId, body, opts) {
     var models = window.KREA_MODELS.models;
     var m = models[modelId];
     if (!m) throw ApiError("未知模型：" + modelId, 0, "bad_model");
-    var out = await request(m.endpoint, { method: "POST", body: body }, DEFAULT_TIMEOUT);
+    opts = opts || {};
+    var out = await request(m.endpoint, { method: "POST", body: body, signal: opts.signal }, DEFAULT_TIMEOUT);
     var id = extractJobId(out);
     if (!id) throw ApiError("Krea 未返回 job_id", 0, "no_job");
     return id;
@@ -163,9 +180,10 @@ window.KREA_API = (function () {
    * OpenAPI 说明「Execute a node app by version ID」，列表里同时给出 id 与
    * node_app_version_id，因此先按 id 调用，404/400 时用版本 ID 重试一次。
    */
-  async function executeApp(appId, body, versionId) {
+  async function executeApp(appId, body, versionId, opts) {
+    opts = opts || {};
     var tryOnce = async function (target) {
-      var out = await request("/node-apps/" + encodeURIComponent(target) + "/execute", { method: "POST", body: body || {} }, DEFAULT_TIMEOUT);
+      var out = await request("/node-apps/" + encodeURIComponent(target) + "/execute", { method: "POST", body: body || {}, signal: opts.signal }, DEFAULT_TIMEOUT);
       var id = extractJobId(out);
       if (!id) throw ApiError("App 未返回 job_id", 0, "no_job");
       return id;
@@ -261,11 +279,12 @@ window.KREA_API = (function () {
   async function waitForJob(jobId, opts) {
     opts = opts || {};
     var interval = opts.intervalMs || 2500;
-    var deadline = Date.now() + (opts.timeoutMs || DEFAULT_TIMEOUT);
+    var jobTimeout = opts.timeoutMs || JOB_TIMEOUT;
+    var deadline = Date.now() + jobTimeout;
     var started = Date.now();
     for (;;) {
       if (opts.isCancelled && opts.isCancelled()) throw ApiError("已取消", 0, "cancelled");
-      if (Date.now() > deadline) throw ApiError("任务超时，请重试", 0, "timeout");
+      if (Date.now() > deadline) throw ApiError("任务 " + Math.round(jobTimeout / 60000) + " 分钟仍未完成，可能仍在后台运行；请稍后到资产页查看，避免重复提交", 0, "timeout");
       await new Promise(function (r) { setTimeout(r, interval); });
       var job = await getJob(jobId);
       var status = (job && job.status) || "unknown";

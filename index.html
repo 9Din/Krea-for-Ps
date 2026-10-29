@@ -10,7 +10,7 @@
 	<body>
 		<div id="app">
 			<!-- 版本戳：由构建脚本写入，main.js 启动时会和自身 VERSION 比对 -->
-			<div id="buildStamp" hidden data-version="2.4.0">
+			<div id="buildStamp" hidden data-version="2.4.1">
 			</div>
 			<!-- ============================ 顶部品牌栏 ============================ -->
 			<header class="header">
@@ -109,7 +109,7 @@
 						<span class="grow export-result-title" id="exportResultTitle" data-i18n="library.exportDone">
 							提示词导出完成
 						</span>
-						<button class="picker-close" id="btnExportClose" title="关闭" data-i18n-title="common.close" aria-label="关闭">
+						<button class="picker-close" id="btnExportClose" title="关闭" data-i18n-title="common.close" aria-label="关闭" data-i18n-aria-label="common.close">
 							×
 						</button>
 					</div>
@@ -260,7 +260,7 @@
 							</sp-field-label>
 							<!-- 模型选择：点击弹出内联选择器（原生 select / sp-picker 在 UXP 里都不可靠） -->
 							<div class="model-field" id="modelField">
-								<button class="dd-trigger model-trigger" id="modelTrigger">
+								<button class="dd-trigger model-trigger" id="modelTrigger" aria-haspopup="listbox" aria-expanded="false">
 									<span id="modelTriggerLabel">
 										—
 									</span>
@@ -348,9 +348,9 @@
 							<sp-button id="featherEdgesBtn" variant="secondary" data-i18n="gen.feather">
 								羽化边缘
 							</sp-button>
-							<button class="step-btn" id="featherMinusBtn" type="button" title="减少 1 像素" data-i18n-title="gen.featherMinus" aria-label="减少 1 像素">−</button>
+							<button class="step-btn" id="featherMinusBtn" type="button" title="减少 1 像素" data-i18n-title="gen.featherMinus" aria-label="减少 1 像素" data-i18n-aria-label="gen.featherMinus">−</button>
 							<input id="featherAmountInput" class="k-input feather-input" type="text" maxlength="3" title="0–250">
-							<button class="step-btn" id="featherPlusBtn" type="button" title="增加 1 像素" data-i18n-title="gen.featherPlus" aria-label="增加 1 像素">+</button>
+							<button class="step-btn" id="featherPlusBtn" type="button" title="增加 1 像素" data-i18n-title="gen.featherPlus" aria-label="增加 1 像素" data-i18n-aria-label="gen.featherPlus">+</button>
 							<sp-label id="featherAmountLabel" size="s">
 								px
 							</sp-label>
@@ -361,7 +361,7 @@
 				<section class="screen chat-screen" id="screenChat" hidden>
 					<div class="chat-top-row">
 						<div class="chat-model-wrap">
-							<button class="dd-trigger model-trigger" id="chatModelTrigger">
+							<button class="dd-trigger model-trigger" id="chatModelTrigger" aria-haspopup="listbox" aria-expanded="false">
 								<span id="chatModelLabel">—</span>
 								<span class="dd-caret">▾</span>
 							</button>
@@ -452,7 +452,7 @@
 				<!-- ---------------------------- 编辑提示词 --------------------------- -->
 				<section class="screen" id="screenPromptEdit" hidden>
 					<div class="section-title">
-						<span id="promptEditTitle" data-i18n="library.new">新增提示词</span>
+						<span id="promptEditTitle">新增提示词</span>
 						<span class="rule"></span>
 					</div>
 					<div class="field">
@@ -645,7 +645,7 @@
 							<div class="about-subtitle" data-i18n="about.fn.inputTitle">选区与输入</div>
 							<div class="about-copy" data-i18n="about.fn.inputBody">
 								• 点击「生成」时实时读取当前选区，并把选区内容作为输入图。
-								• 没有选区时会提示先创建选区，与原版行为一致。
+								• 没有选区时会提示先创建选区。
 								• 可为支持参考图的模型添加多张参考图；过大的图片会自动缩放到 1024px 后再发送。
 								• 图生图固定使用 0.5 的编辑强度，兼顾保留原图与重绘效果。
 							</div>
