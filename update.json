@@ -1,6 +1,7 @@
 {
-  "version": "2.4.0",
-  "notes": "界面配色回退到 2.3.8：面板、卡片、输入框、按钮和筛选 Chips 重新跟随 Photoshop 深浅色主题；设置 →「隐藏与显示」新增「隐藏资产」开关，可隐藏顶部「资产」页签和整个资产面板，隐藏后所有入口自动回落到 Apps 页；图标主题切换和隐藏全部/收藏夹开关保持不变。",
-  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.4.0/Krea-for-Ps-2.4.0.ccx",
-  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.4.0"
+  "version": "2.4.1",
+  "notes": "修复了“生成”页面的若干问题。修复了“对话”页面中模型的部分生成问题。提升了“资产”页面的图片加载速度。",
+  "notes_en": "Fixed several issues on the “Generate” page.Fixed some model generation issues on the “Chat” page.Improved image loading speed on the “Assets” page.",
+  "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.4.1/Krea-for-Ps-2.4.1.ccx",
+  "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.4.1"
 }
