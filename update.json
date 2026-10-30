@@ -1,6 +1,6 @@
 {
   "version": "2.4.1",
-  "notes": "修复了“生成”页面的若干问题。修复了“对话”页面中模型的部分生成问题。提升了“资产”页面的图片加载速度。",
+  "notes": "Fixed several issues on the “Generate” page.Fixed some model generation issues on the “Chat” page.Improved image loading speed on the “Assets” page.",
   "notes_en": "Fixed several issues on the “Generate” page.Fixed some model generation issues on the “Chat” page.Improved image loading speed on the “Assets” page.",
   "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.4.1/Krea-for-Ps-2.4.1.ccx",
   "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.4.1"
