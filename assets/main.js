@@ -28,7 +28,7 @@
   var PS = window.KREA_PS;
   var MODELS = window.KREA_MODELS;
 
-  var VERSION = "2.4.1";
+  var VERSION = "2.4.2";
   var TOKEN_PAGE = "https://krea.ai/settings/api-tokens";
   /* 关于页「联系我们」通过 Teams 深链打开作者对话，不需要额外权限。 */
   var AUTHOR_TEAMS_EMAIL = "zhiwei.feng@hba.com";
@@ -122,6 +122,11 @@
   var AGENT_SESSION_NAME = "Krea for Ps";
   var AGENT_WAIT_SECONDS = 60;
   var AGENT_MAX_WAIT_MS = 10 * 60 * 1000;
+  /* Agent 图片预览缓存：只缓存缩略图 data URL，不缓存原图。
+     多轮对话里图片会不断累积，超过上限时按最久未使用顺序释放 previewData。 */
+  var AGENT_MEDIA_PREVIEW_MAX = 16;
+  var AGENT_MEDIA_PREVIEW_BYTES = 6 * 1024 * 1024;
+  var AGENT_MEDIA_LOADING = "./assets/loading/loading.gif";
 
   /* ============================== st ============================== */
   var st = {
@@ -156,7 +161,11 @@
     /* Krea Agent：sessionId 只在本次面板会话内保留；清空对话会结束这段上下文。 */
     agentModel: "",      // "" = Auto
     agentAllowed: null,  // 403 allowedModels 返回的白名单
-    agentHistory: [],    // [{role:"user"|"assistant"|"error", text, model, ts, pending}]
+    /* media 只存轻量元数据：url / previewUrl / jobId / kind / type。
+       缩略图 data URL 放在 previewData，并且有数量与总量上限；原图在置入时临时下载。 */
+    agentHistory: [],    // [{role, text, prompt, model, ts, pending, media:[...], attachment:{base64,url,name,width,height}}]
+    agentMediaSeq: 0,    // previewData 的 LRU 序号
+    agentPlaceBusy: false, // 同一时间只允许一个图片置入任务
     agentSessionId: null,
     agentRunId: null,
     /* 资产页：只展示 GET /jobs 的生成历史。
@@ -723,21 +732,6 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
         } catch (e5) { /* ignore */ }
       }
     }
-  }
-
-  /* */
-  function iconBtn(icon, title, onClick, opts) {
-    opts = opts || {};
-    var btn = mk("sp-action-button", {
-      quiet: opts.quiet === false ? null : "",
-      title: title,
-      style: opts.style || "",
-      on: { click: onClick }
-    });
-    if (opts.quiet === false) btn.removeAttribute("quiet");
-    if (opts.variant) btn.setAttribute("variant", opts.variant);
-    btn.appendChild(iconImgEl(icon, opts.size || ICON_PX));
-    return btn;
   }
 
   /**
@@ -1760,6 +1754,19 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     };
   }
 
+  /* 文件选择器统一为「所有文件」后，这里负责提示不支持的扩展名。 */
+  function warnUnsupportedImages(files) {
+    var names = [];
+    for (var i = 0; i < (files || []).length; i++) {
+      var n = files[i] && files[i].name ? String(files[i].name) : "";
+      if (n) names.push(n.length > 40 ? n.slice(0, 37) + "..." : n);
+    }
+    if (!names.length) return;
+    var shown = names.join(", ");
+    if (shown.length > 160) shown = shown.slice(0, 157) + "...";
+    toast(T("gen.pickUnsupported", { names: shown }), "error");
+  }
+
   /* 图片输入控件：缩略图 + 选区/文件/URL 三种来源 */
   function makeImageControl(f, multiple) {
     var items = [];
@@ -1797,7 +1804,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       });
     });
     var btnFile = textBtn(T("gen.pick"), function () {
-      PS.pickImageFiles(multiple).then(function (files) {
+      PS.pickImageFiles(multiple, warnUnsupportedImages).then(function (files) {
         var chain = Promise.resolve();
         files.forEach(function (file) {
           chain = chain.then(function () {
@@ -2075,7 +2082,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
    * 阈值用 1.4 × 1024² 字节，避免对普通小图做一次无谓的临时文档往返。
    */
   async function addGenerateRefs() {
-    var files = await PS.pickImageFiles(true);
+    var files = await PS.pickImageFiles(true, warnUnsupportedImages);
     var added = 0;
     var maxPx = 1024;
     var threshold = 1.4 * maxPx * maxPx;
@@ -2923,7 +2930,13 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     var strip = $("chatSourceThumb");
     if (!strip) return;
     clear(strip);
-    if (!st.source || st.source.blank) { fitChatStream(); return; }
+    if (!st.source || st.source.blank) {
+      // 空缩略图条在 flex 布局里仍可能占一行 / 产生间距，直接隐藏。
+      strip.classList.add("hidden");
+      fitChatStream();
+      return;
+    }
+    strip.classList.remove("hidden");
     var cell = mk("div", { class: "thumb-cell" });
     var img = mk("img", { alt: st.source.name || "source" });
     img.src = uriOf(st.source);
@@ -2963,11 +2976,518 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     toast(T("chat.agentSentToGenerate"), "ok");
   }
 
+  /* ------------------------------------------------------------------
+   * Agent 媒体结果
+   *
+   * wait-for-session 的 media 字段在不同版本里可能是：
+   *   ["https://..."] / [{url,type}] / {media:[...]} / {job_id, ...}
+   * 这里统一归一化成轻量对象。历史里不保存原图 base64，缩略图单独缓存。
+   * ------------------------------------------------------------------ */
+  function agentMediaKind(type, url) {
+    var t = String(type || "").toLowerCase();
+    var u = String(url || "").toLowerCase();
+    if (t.indexOf("video/") === 0 || t === "video" ||
+        /\.(mp4|webm|mov|m4v|avi|mkv)(?:[?#]|$)/.test(u)) return "video";
+    if (t.indexOf("audio/") === 0 || t === "audio" ||
+        /\.(mp3|wav|m4a|aac|ogg|flac)(?:[?#]|$)/.test(u)) return "audio";
+    return "image";
+  }
+
+  function agentMediaUrlFromObject(m) {
+    if (!m || typeof m !== "object") return "";
+    var keys = ["url", "image_url", "imageUrl", "asset_url", "assetUrl", "src",
+      "href", "download_url", "downloadUrl", "image"];
+    for (var i = 0; i < keys.length; i++) {
+      if (typeof m[keys[i]] === "string" && m[keys[i]]) return m[keys[i]];
+    }
+    if (m.preview) {
+      if (typeof m.preview === "string") return m.preview;
+      if (typeof m.preview.url === "string" && m.preview.url) return m.preview.url;
+    }
+    if (m.asset && typeof m.asset.url === "string" && m.asset.url) return m.asset.url;
+    if (m.image && typeof m.image.url === "string" && m.image.url) return m.image.url;
+    return "";
+  }
+
+  function agentMediaPreviewUrlFromObject(m) {
+    if (!m || typeof m !== "object") return "";
+    var keys = ["preview_url", "previewUrl", "thumbnail_url", "thumbnailUrl",
+      "thumb_url", "thumbUrl"];
+    for (var i = 0; i < keys.length; i++) {
+      if (typeof m[keys[i]] === "string" && m[keys[i]]) return m[keys[i]];
+    }
+    if (typeof m.preview === "string" && m.preview) return m.preview;
+    if (m.preview && typeof m.preview === "object" && typeof m.preview.url === "string") {
+      return m.preview.url;
+    }
+    return "";
+  }
+
+  function agentMediaFromObject(m) {
+    if (!m || typeof m !== "object") return null;
+    var url = agentMediaUrlFromObject(m);
+    var previewUrl = agentMediaPreviewUrlFromObject(m);
+    var type = m.type || m.kind || m.media_type || m.mediaType || m.mime ||
+      m.mime_type || m.content_type || m.contentType || "";
+    var jobId = m.job_id || m.jobId || m.jobID || "";
+    if (!jobId && m.job && typeof m.job === "object") jobId = m.job.id || m.job.job_id || "";
+    if (!jobId && m.id && (m.status || m.result)) jobId = m.id;
+    var base64 = "";
+    if (typeof m.base64 === "string" && m.base64) base64 = m.base64;
+    else if (typeof m.data === "string" && /^data:image\//i.test(m.data)) base64 = m.data;
+    var resultObj = (m.result && m.result.urls) ? m.result :
+      (m.urls ? { urls: m.urls } : null);
+    if (resultObj) {
+      var resultUrls = API.pickResultUrls(resultObj);
+      if (!url && resultUrls.model) url = resultUrls.model;
+      if (!previewUrl && resultUrls.preview) previewUrl = resultUrls.preview;
+    }
+    if (!url && !previewUrl && !jobId && !base64) return null;
+    if (!type && base64) {
+      var mt = /^data:([^;,]+)/i.exec(base64);
+      if (mt) type = mt[1];
+    }
+    return {
+      url: String(url || ""),
+      previewUrl: String(previewUrl || ""),
+      jobId: String(jobId || ""),
+      base64: base64,
+      type: String(type || ""),
+      kind: agentMediaKind(type, url || previewUrl || "")
+    };
+  }
+
+  function agentMediaUrlKey(url) {
+    // Krea 的对象存储地址带短期签名；比较路径即可识别同一张图。
+    return String(url || "").split(/[?#]/)[0];
+  }
+
+  function agentMediaSame(a, b) {
+    if (!a || !b) return false;
+    var au = agentMediaUrlKey(a.url);
+    var bu = agentMediaUrlKey(b.url);
+    if (au && bu) return au === bu;
+    var ap = agentMediaUrlKey(a.previewUrl);
+    var bp = agentMediaUrlKey(b.previewUrl);
+    if (ap && bp) return ap === bp;
+    if (a.jobId && b.jobId && (!a.url || !b.url)) return a.jobId === b.jobId;
+    return false;
+  }
+
+  function mergeAgentMediaObjects(acc, list) {
+    for (var i = 0; i < list.length; i++) {
+      var m = list[i];
+      var found = null;
+      for (var j = 0; j < acc.length; j++) {
+        if (agentMediaSame(acc[j], m)) { found = acc[j]; break; }
+      }
+      if (!found) {
+        acc.push(m);
+        continue;
+      }
+      // 同一张图可能在后续 wait 里补充了 jobId / previewUrl，取更完整的一份。
+      if (!found.url && m.url) found.url = m.url;
+      if (!found.previewUrl && m.previewUrl) found.previewUrl = m.previewUrl;
+      if (!found.jobId && m.jobId) found.jobId = m.jobId;
+      if (!found.type && m.type) found.type = m.type;
+      if (!found.base64 && m.base64) found.base64 = m.base64;
+      found.kind = agentMediaKind(found.type, found.url || found.previewUrl || "");
+    }
+    return acc;
+  }
+
+  function mergeAgentMedia(acc, raw) {
+    return mergeAgentMediaObjects(acc, normalizeAgentMedia(raw));
+  }
+
+  function normalizeAgentMedia(raw) {
+    if (!raw) return [];
+    var list = null;
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === "string") {
+      var str = raw.trim();
+      if (str && (str.charAt(0) === "[" || str.charAt(0) === "{")) {
+        try {
+          var parsed = JSON.parse(str);
+          if (parsed && parsed !== raw) return normalizeAgentMedia(parsed);
+        } catch (eJson) { /* 不是 JSON，按 URL 处理 */ }
+      }
+      list = [raw];
+    } else if (typeof raw === "object") {
+      var wrappers = ["media", "images", "assets", "outputs", "results", "items", "urls"];
+      var hasDirectMedia = !!(agentMediaUrlFromObject(raw) ||
+        agentMediaPreviewUrlFromObject(raw) || raw.job_id || raw.jobId || raw.base64);
+      if (!hasDirectMedia) {
+        for (var i = 0; i < wrappers.length; i++) {
+          if (Array.isArray(raw[wrappers[i]])) { list = raw[wrappers[i]]; break; }
+        }
+      }
+      if (!list && raw.media && typeof raw.media === "object") {
+        var topNested = normalizeAgentMedia(raw.media);
+        if (topNested.length) return topNested;
+      }
+      if (!list && typeof raw.media === "string" && raw.media) return normalizeAgentMedia(raw.media);
+      if (!list) list = [raw];
+    } else return [];
+
+    var out = [];
+    for (var j = 0; j < list.length; j++) {
+      var item = list[j];
+      if (typeof item === "string") item = { url: item };
+      if (!item || typeof item !== "object") continue;
+      // 嵌套包装（例如 [{media:[...]}]）递归展开；只有没有直接媒体字段时才展开。
+      var nested = null;
+      var nestedKeys = ["media", "images", "assets", "outputs", "results", "items"];
+      for (var k = 0; k < nestedKeys.length; k++) {
+        var nv = item[nestedKeys[k]];
+        if (nv && (Array.isArray(nv) || typeof nv === "object" || typeof nv === "string")) {
+          nested = nv;
+          break;
+        }
+      }
+      if (nested && !agentMediaUrlFromObject(item) &&
+          !agentMediaPreviewUrlFromObject(item) && !item.job_id && !item.jobId) {
+        var children = normalizeAgentMedia(nested);
+        mergeAgentMediaObjects(out, children);
+        continue;
+      }
+      var media = agentMediaFromObject(item);
+      if (media) mergeAgentMediaObjects(out, [media]);
+    }
+    return out;
+  }
+
+  function extractAgentMarkdownMedia(text) {
+    var out = [];
+    var re = /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/g;
+    var m;
+    while ((m = re.exec(String(text || "")))) {
+      mergeAgentMedia(out, [{ url: m[1], type: "image" }]);
+    }
+    return out;
+  }
+
+  function trimAgentMediaPreviews() {
+    var entries = [];
+    st.agentHistory.forEach(function (item) {
+      if (!item || !Array.isArray(item.media)) return;
+      item.media.forEach(function (m) {
+        if (m && m.previewData) entries.push(m);
+      });
+    });
+    entries.sort(function (a, b) { return (a.previewSeq || 0) - (b.previewSeq || 0); });
+    var total = 0;
+    entries.forEach(function (m) { total += String(m.previewData || "").length; });
+    // 至少保留一张，避免单张较大的预览被立刻清掉后反复下载。
+    while (entries.length > 1 &&
+           (entries.length > AGENT_MEDIA_PREVIEW_MAX || total > AGENT_MEDIA_PREVIEW_BYTES)) {
+      var old = entries.shift();
+      total -= String(old.previewData || "").length;
+      delete old.previewData;
+      delete old.previewPromise;
+      old.previewSeq = 0;
+    }
+  }
+
+  function rememberAgentMediaPreview(media, data) {
+    if (!media || !data) return;
+    media.previewData = data;
+    media.previewSeq = ++st.agentMediaSeq;
+    trimAgentMediaPreviews();
+  }
+
+  /**
+   * 如果媒体只给了 jobId，先查 job；仍在生成时等到完成。
+   * preview 阶段用预览地址，置入阶段用 model 原图。
+   */
+  async function resolveAgentMediaUrls(media, opts) {
+    opts = opts || {};
+    var out = { url: media.url || "", previewUrl: media.previewUrl || "" };
+    if (!media.jobId) return out;
+    var job = null;
+    try {
+      job = await API.getJob(media.jobId);
+    } catch (e) {
+      if (e && (e.status === 404 || e.code === "not_found")) return out;
+      throw e;
+    }
+    if (!job) return out;
+    var status = String(job.status || "");
+    if (status === "failed" || status === "cancelled") {
+      throw new Error(T("chat.agentMediaFailed"));
+    }
+    var urls = API.pickResultUrls(job.result);
+    if (urls.model || urls.preview) {
+      out.url = urls.model || out.url;
+      out.previewUrl = urls.preview || out.previewUrl;
+      media.url = out.url;
+      if (out.previewUrl) media.previewUrl = out.previewUrl;
+    }
+    if (status !== "completed" && opts.wait !== false) {
+      var done = await API.waitForJob(media.jobId, {
+        intervalMs: 2500,
+        onTick: opts.onTick
+      });
+      var doneUrls = API.pickResultUrls(done.raw && done.raw.result);
+      out.url = doneUrls.model || done.primary || out.url;
+      out.previewUrl = doneUrls.preview || out.previewUrl;
+      media.url = out.url;
+      if (out.previewUrl) media.previewUrl = out.previewUrl;
+    }
+    return out;
+  }
+
+  async function loadAgentMediaPreview(media) {
+    if (!media) return "";
+    if (media.previewData) return media.previewData;
+    if (media.previewFailed) return "";
+    if (media.previewPromise) return await media.previewPromise;
+    if (media.base64) {
+      var direct = uriOf({ base64: media.base64, mime: media.type });
+      if (direct) { rememberAgentMediaPreview(media, direct); return direct; }
+    }
+    media.previewPromise = (async function () {
+      try {
+        var urls = await resolveAgentMediaUrls(media, { wait: true });
+        var url = urls.previewUrl || urls.url || media.previewUrl || media.url;
+        if (!url) throw new Error(T("chat.agentNoImage"));
+        var b64;
+        if (/^data:/i.test(url)) {
+          b64 = url;
+        } else {
+          try {
+            b64 = await API.downloadBase64(url, 45000, { attempts: 2, retryDelayMs: 500 });
+          } catch (eFirst) {
+            // 签名地址过期时，先重新查 job 再下载一次。
+            if (!media.jobId) throw eFirst;
+            var fresh = await resolveAgentMediaUrls(media, { wait: true });
+            var next = fresh.previewUrl || fresh.url;
+            if (!next || next === url) throw eFirst;
+            b64 = await API.downloadBase64(next, 45000, { attempts: 2, retryDelayMs: 500 });
+          }
+        }
+        var data = /^data:/i.test(b64) ? b64 : uriOf({ base64: b64 });
+        if (!data) throw new Error(T("assets.noPreview"));
+        rememberAgentMediaPreview(media, data);
+        return data;
+      } catch (e) {
+        media.previewFailed = true;
+        console.warn("[Krea for Ps] agent media preview failed",
+          media.url || media.jobId || "", e && e.message ? e.message : e);
+        return "";
+      } finally {
+        media.previewPromise = null;
+      }
+    })();
+    return await media.previewPromise;
+  }
+
+  function base64FromDataUrl(value) {
+    return String(value || "").replace(/^data:[^;]+;base64,/, "");
+  }
+
+  /** 置入时才下载原图；预览缓存永远不会被当成原图长期保存。 */
+  async function loadAgentMediaFull(media) {
+    if (!media) throw new Error(T("chat.agentNoImage"));
+    if (media.kind && media.kind !== "image") {
+      throw new Error(T("chat.agentMediaNotImage"));
+    }
+    if (media.base64) return base64FromDataUrl(media.base64);
+    var urls = await resolveAgentMediaUrls(media, { wait: true });
+    var url = urls.url || media.url;
+    if (!url) {
+      // 只有预览图的极端情况：至少让用户能置入，但图片分辨率受预览限制。
+      if (media.previewData) return base64FromDataUrl(media.previewData);
+      throw new Error(T("chat.agentNoImage"));
+    }
+    if (/^data:image\//i.test(url)) return base64FromDataUrl(url);
+    if (agentMediaKind(media.type, url) !== "image") {
+      throw new Error(T("chat.agentMediaNotImage"));
+    }
+    var fresh = await refreshResultUrl(url, media.jobId);
+    return await API.downloadBase64(fresh || url);
+  }
+
+  /**
+   * 点击时重新抓当前 PS 文档 / 选区，并强制 newLayer。
+   * 不能沿用 st.lastSnapshot，也不能按生成页的 outputMode 覆盖原图层。
+   */
+  async function placeAgentMedia(item, media, btn) {
+    if (!media) return;
+    if (st.agentPlaceBusy) {
+      toast(T("chat.agentPlacing"), "error");
+      return;
+    }
+    if (media.kind && media.kind !== "image") {
+      toast(T("chat.agentMediaNotImage"), "error");
+      return;
+    }
+    st.agentPlaceBusy = true;
+    var oldText = btn ? btn.textContent : "";
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = T("chat.agentPlacing");
+    }
+    var ownProgress = !progressVisible();
+    if (ownProgress) showProgress(T("chat.agentMediaDownloading"), "", false);
+    try {
+      var snap = await snapshotPs();
+      var b64 = await loadAgentMediaFull(media);
+      if (ownProgress) hideProgress();
+      await placeResult(b64, T("chat.agentName"), "newLayer", snap);
+    } catch (e) {
+      if (ownProgress) hideProgress();
+      if (API.isAuthError(e)) handleError(e, "chat-agent-place");
+      else toast(T("chat.agentPlaceFailed", { msg: errMsg(e) }), "error");
+    } finally {
+      st.agentPlaceBusy = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = oldText || T("chat.agentPlace");
+      }
+    }
+  }
+
   function agentRoleLabel(item) {
     if (item.role === "user") return T("chat.agentYou");
     if (item.role === "error") return T("chat.agentName");
     var model = item.model ? " · " + llmLabel(item.model) : "";
     return T("chat.agentName") + model;
+  }
+
+  function agentHasMedia(item) {
+    return !!(item && item.media && item.media.length);
+  }
+
+  function agentCopyValue(item) {
+    var text = String(item && item.text || "").trim();
+    if (text) return text;
+    var urls = [];
+    (item && item.media || []).forEach(function (m) {
+      var url = m && (m.url || m.previewUrl);
+      if (url) urls.push(url);
+    });
+    return urls.join("\n") || String(item && item.prompt || "").trim();
+  }
+
+  function chatIsNearBottom(host) {
+    if (!host) return false;
+    return host.scrollHeight - host.scrollTop - host.clientHeight <= 24;
+  }
+
+  function agentRefreshChatLayout() {
+    if (st.screen !== "screenChat") return;
+    var host = $("chatStream");
+    var stickBottom = chatIsNearBottom(host);
+    var oldTop = host ? host.scrollTop : 0;
+    fitChatStream();
+    if (!host) return;
+    if (stickBottom) host.scrollTop = host.scrollHeight;
+    else host.scrollTop = Math.min(oldTop, Math.max(0, host.scrollHeight - host.clientHeight));
+  }
+
+  function agentHasUserAttachment(item) {
+    var att = item && item.attachment;
+    return !!(att && (att.base64 || att.url));
+  }
+
+  function buildUserAttachment(att) {
+    var uri = uriOf(att);
+    if (!uri) return null;
+    var w = Number(att.width) || 0;
+    var h = Number(att.height) || 0;
+    var boxW = 140;
+    var boxH = (w && h) ? Math.round(boxW * h / w) : 100;
+    boxH = Math.max(48, Math.min(180, boxH));
+    var box = mk("div", {
+      class: "agent-attachment",
+      style: "width:" + boxW + "px;height:" + boxH + "px;"
+    });
+    var img = mk("img", {
+      class: "agent-attachment-img",
+      alt: att.name || "attachment"
+    });
+    img.setAttribute("src", uri);
+    try { img.src = uri; } catch (e) { /* ignore */ }
+    box.appendChild(img);
+    return box;
+  }
+
+  function agentShowMediaFallback(img, media) {
+    if (!img || !img.parentNode) return;
+    var text = media && media.kind && media.kind !== "image"
+      ? T("chat.agentMediaNotImage") : T("assets.noPreview");
+    img.parentNode.replaceChild(mk("div", { class: "agent-media-fallback", text: text }), img);
+    agentRefreshChatLayout();
+  }
+
+  function buildAgentMediaCard(item, media) {
+    var card = mk("div", { class: "agent-media-card" });
+    var thumb = mk("div", { class: "agent-media-thumb" });
+    card.appendChild(thumb);
+
+    if (!media || (media.kind && media.kind !== "image")) {
+      thumb.appendChild(mk("div", { class: "agent-media-fallback", text: T("chat.agentMediaNotImage") }));
+      return card;
+    }
+
+    if (media.previewFailed) {
+      thumb.appendChild(mk("div", { class: "agent-media-fallback", text: T("assets.noPreview") }));
+    } else {
+      var img = mk("img", {
+        class: "agent-media-img" + (media.previewData ? "" : " loading"),
+        alt: ""
+      });
+      img.addEventListener("error", function () {
+        media.previewFailed = true;
+        agentShowMediaFallback(img, media);
+      });
+      if (media.previewData) {
+        img.setAttribute("src", media.previewData);
+        try { img.src = media.previewData; } catch (e1) { /* ignore */ }
+      } else {
+        img.setAttribute("src", AGENT_MEDIA_LOADING);
+        try { img.src = AGENT_MEDIA_LOADING; } catch (e2) { /* ignore */ }
+        loadAgentMediaPreview(media).then(function (data) {
+          if (!data) { agentShowMediaFallback(img, media); return; }
+          if (!img.parentNode) return;
+          img.className = "agent-media-img";
+          img.setAttribute("src", data);
+          try { img.src = data; } catch (e3) { /* ignore */ }
+          agentRefreshChatLayout();
+        });
+      }
+      thumb.appendChild(img);
+    }
+
+    var placeBtn = mk("button", {
+      type: "button",
+      class: "agent-media-place",
+      text: T("chat.agentPlace")
+    });
+    placeBtn.addEventListener("click", function () { placeAgentMedia(item, media, placeBtn); });
+    card.appendChild(placeBtn);
+    return card;
+  }
+
+  function agentActionsFor(item) {
+    var actions = mk("div", { class: "agent-actions" });
+    var copyValue = agentCopyValue(item);
+    var text = String(item && item.text || "").trim();
+    // 纯图片回复时没有 Agent 文字，退回用户这一轮的提示词，按钮仍然可用。
+    var useText = text || String(item && item.prompt || "").trim();
+    if (!copyValue && !useText && !agentHasMedia(item)) return null;
+
+    var copyBtn = mk("button", { type: "button", text: T("chat.agentCopy") });
+    if (!copyValue) copyBtn.disabled = true;
+    else copyBtn.addEventListener("click", function () { copyAgentText(copyValue); });
+    actions.appendChild(copyBtn);
+
+    var useBtn = mk("button", { type: "button", text: T("chat.agentUseAsPrompt") });
+    if (!useText) useBtn.disabled = true;
+    else useBtn.addEventListener("click", function () { sendAgentTextToGenerate(useText); });
+    actions.appendChild(useBtn);
+    return actions;
   }
 
   function renderAgentStream(host) {
@@ -2980,36 +3500,43 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       var role = item.role === "user" ? "user" : item.role === "error" ? "error" : "assistant";
       var box = mk("div", { class: "agent-msg " + role });
       box.appendChild(mk("div", { class: "agent-role", text: agentRoleLabel(item) }));
+      if (role === "user" && agentHasUserAttachment(item)) {
+        var attachment = buildUserAttachment(item.attachment);
+        if (attachment) box.appendChild(attachment);
+      }
       if (item.pending) {
         box.appendChild(mk("div", { class: "agent-pending", text: T("chat.agentPending") }));
-      } else {
-        box.appendChild(mk("div", { class: "agent-text", text: item.text || "" }));
+      } else if (String(item.text || "").trim()) {
+        box.appendChild(mk("div", { class: "agent-text", text: item.text }));
       }
+
+      if (agentHasMedia(item)) {
+        var mediaHost = mk("div", { class: "agent-media" });
+        item.media.forEach(function (media) {
+          mediaHost.appendChild(buildAgentMediaCard(item, media));
+        });
+        box.appendChild(mediaHost);
+      }
+
       if (role === "assistant" && !item.pending) {
-        var actions = mk("div", { class: "agent-actions" });
-        actions.appendChild(mk("button", {
-          type: "button",
-          text: T("chat.agentCopy"),
-          on: { click: function () { copyAgentText(item.text); } }
-        }));
-        actions.appendChild(mk("button", {
-          type: "button",
-          text: T("chat.agentUseAsPrompt"),
-          on: { click: function () { sendAgentTextToGenerate(item.text); } }
-        }));
-        box.appendChild(actions);
+        var actions = agentActionsFor(item);
+        if (actions) box.appendChild(actions);
       }
       host.appendChild(box);
     });
     fitChatStream();
-    host.scrollTop = host.scrollHeight;
   }
 
-  function renderChatStream() {
+  function renderChatStream(opts) {
     var host = $("chatStream");
     if (!host) return;
+    opts = opts || {};
+    var oldTop = host.scrollTop;
+    var stickBottom = chatIsNearBottom(host);
     clear(host);
     renderAgentStream(host);
+    if (opts.toBottom || stickBottom) host.scrollTop = host.scrollHeight;
+    else host.scrollTop = Math.min(oldTop, Math.max(0, host.scrollHeight - host.clientHeight));
   }
 
   function agentErrorText(e) {
@@ -3037,8 +3564,8 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
    * Agent 只接受公开 URL / Krea 文件 URI。这里优先复用已上传的地址；
    * 第一次发送时把 PS 选区或本地文件上传到 /assets。
    */
-  async function agentAttachmentFromSource() {
-    var src = st.source;
+  async function agentAttachmentFromSource(source) {
+    var src = source || st.source;
     if (!src || src.blank) return null;
     if (src.assetUrl) {
       return { url: src.assetUrl, name: src.assetName || src.name || "image", contentType: src.assetMime || src.mime || "image/jpeg" };
@@ -3066,13 +3593,42 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     setChatBusy(true);
     st.cancelFlag = false;
     var submitted = false;
-    var userItem = { role: "user", text: prompt, ts: Date.now() };
-    var placeholder = { role: "assistant", text: "", model: st.agentModel || "", ts: Date.now(), pending: true };
+    var sourceSnapshot = st.source;
+    var hasSource = !!(sourceSnapshot && !sourceSnapshot.blank);
+    // 先把发送时的输入图快照进消息；随后立刻清空输入区缩略图，避免它一直悬挂在输入框上方。
+    var attachmentPreview = hasSource ? {
+      base64: sourceSnapshot.base64 || null,
+      // 本地 base64 在 UXP 里最可靠；只有没有 base64 时才退回远程地址。
+      url: sourceSnapshot.base64 ? null : (sourceSnapshot.url || sourceSnapshot.assetUrl || null),
+      mime: sourceSnapshot.mime || sourceSnapshot.assetMime || "image/png",
+      name: sourceSnapshot.name || "image",
+      width: sourceSnapshot.width || 0,
+      height: sourceSnapshot.height || 0,
+      kind: sourceSnapshot.kind || "file"
+    } : null;
+    var userItem = {
+      role: "user",
+      text: prompt,
+      ts: Date.now(),
+      attachment: attachmentPreview
+    };
+    var placeholder = {
+      role: "assistant",
+      text: "",
+      model: st.agentModel || "",
+      ts: Date.now(),
+      pending: true,
+      // 纯图片回复没有文字时，「填入生成」回退到用户这一轮的原始提示词。
+      prompt: prompt
+    };
     st.agentHistory.push(userItem);
     st.agentHistory.push(placeholder);
-    renderChatStream();
+    st.source = null;
+    renderChatSource();
     if (input) input.value = "";
-    showProgress(T(st.source && !st.source.blank ? "chat.agentUploading" : "chat.agentSending"), "", true);
+    showProgress(T(hasSource ? "chat.agentUploading" : "chat.agentSending"), "", true);
+    // 进度框出现后再滚动，确保滑块落到最新消息（刚发送的用户消息 + 等待中的回复）。
+    renderChatStream({ toBottom: true });
     startProgressTimer();
 
     var cancelledError = function () {
@@ -3082,7 +3638,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     };
 
     try {
-      var attachment = await agentAttachmentFromSource();
+      var attachment = await agentAttachmentFromSource(sourceSnapshot);
       if (st.cancelFlag) throw cancelledError();
       var body = { prompt: prompt };
       if (st.agentSessionId) body.sessionId = st.agentSessionId;
@@ -3101,10 +3657,21 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
       setProgress(T("chat.agentWaiting"), llmLabel(st.agentModel));
       var startedAt = Date.now();
       var wait = null;
+      var media = [];
       while (true) {
         // 不再等满 10 分钟：用户点取消后立即离开等待循环，保留 sessionId 以便追问。
         if (st.cancelFlag) throw cancelledError();
         wait = await API.waitForAgentSession(st.agentSessionId, st.agentRunId, AGENT_WAIT_SECONDS);
+        // 非最终轮也可能已经带回图片 / 任务 id，必须累积，不能只读最后一次 wait。
+        var rawMedia = wait && wait.media;
+        var incomingMedia = mergeAgentMedia([], rawMedia);
+        var rawMediaPresent = !!rawMedia &&
+          (!Array.isArray(rawMedia) || rawMedia.length > 0);
+        if (rawMediaPresent && !incomingMedia.length) {
+          console.warn("[Krea for Ps] unrecognized Agent media shape", rawMedia);
+        }
+        media = mergeAgentMediaObjects(media, incomingMedia);
+        placeholder.media = media.length ? media : null;
         if (wait && wait.finished) break;
         if (st.cancelFlag) throw cancelledError();
         var waited = Math.round((Date.now() - startedAt) / 1000);
@@ -3121,10 +3688,15 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
         cancelled.code = "cancelled";
         throw cancelled;
       }
-      var text = String(wait.text || "").trim() || T("chat.agentNoReply");
+      var text = String(wait.text || "").trim();
+      // 兼容 media 为空、图片直接写进 Markdown 的返回。
+      if (!media.length) media = extractAgentMarkdownMedia(text);
       placeholder.pending = false;
-      placeholder.text = text;
-      renderChatStream();
+      placeholder.media = media.length ? media : null;
+      // 有图片时允许纯图片回复；只有文字和图片都为空才提示“没有返回内容”。
+      placeholder.text = text || (media.length ? "" : T("chat.agentNoReply"));
+      // 发送时先定位到用户消息；回复到达后再回到底部，保证答案可见。
+      renderChatStream({ toBottom: true });
       pushHistory(prompt);
     } catch (e) {
       placeholder.pending = false;
@@ -3148,13 +3720,17 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
         if (API.isAuthError(e)) handleError(e, "chat-agent");
         else toast(placeholder.text, "error");
       }
-      renderChatStream();
+      renderChatStream({ toBottom: true });
 
       if (!submitted) {
         // 请求还没创建/继续会话：撤销这两条消息并恢复输入，避免重试时出现重复提问。
         st.agentHistory.pop();
         st.agentHistory.pop();
-        renderChatStream();
+        if (hasSource && sourceSnapshot && !st.source) {
+          st.source = sourceSnapshot;
+          renderChatSource();
+        }
+        renderChatStream({ toBottom: true });
         if (input && !String(input.value || "").trim()) input.value = prompt;
       }
     } finally {
@@ -3180,6 +3756,7 @@ if (tag === "sp-checkbox" || tag === "sp-radio") el.setAttribute("type", tag ===
     // 「清空对话」清掉消息、上传/选区的输入图和输入框草稿，
     // 并结束本地 Agent 会话上下文（服务端历史不会删除，但后续消息会另起会话）。
     st.agentHistory = [];
+    st.agentMediaSeq = 0;
     st.agentSessionId = null;
     st.agentRunId = null;
     st.agentAllowed = null;
@@ -4565,6 +5142,7 @@ $("promptName").value = it ? libText(it.name) : "";
     st.agentModel = "";
     st.agentAllowed = null;
     st.agentHistory = [];
+    st.agentMediaSeq = 0;
     st.agentSessionId = null;
     st.agentRunId = null;
     st.lastSnapshot = null;
@@ -5597,13 +6175,20 @@ $("promptName").value = it ? libText(it.name) : "";
       if (!bodyH) return;
       var top = screen.querySelector(".chat-top-row");
       var composer = screen.querySelector(".chat-composer");
-      var used = (top ? top.offsetHeight : 0) + (composer ? composer.offsetHeight : 0) + 34;
-      var h = Math.max(120, bodyH - used);
+      // 屏幕高度优先用 screen 自身；顶栏 / composer 的上下间距已经做进 padding，
+      // offsetHeight 已包含它们，不能再额外加固定预留值，否则 composer 下方会空一截。
+      var viewport = screen.clientHeight || Math.max(0, bodyH - 8);
+      var used = (top ? top.offsetHeight : 0) + (composer ? composer.offsetHeight : 0);
+      var h = Math.max(120, viewport - used);
+      // 进度框收起 / 面板变高时可视区会变大；如果原本就在底部，保持贴底，
+      // 避免 scrollTop 超过新的最大值后出现空白。
+      var stickBottom = chatIsNearBottom(stream);
       // flex-basis 为 0 时 height 不参与主尺寸计算，这里切换成固定尺寸，
       // 确保 UXP 不会按内容高度把 stream 撑出可视区。
       stream.style.flex = "0 0 auto";
       stream.style.height = h + "px";
       stream.style.maxHeight = h + "px";
+      if (stickBottom) stream.scrollTop = stream.scrollHeight;
     } catch (e) { /* 老版本 UXP 没有布局信息时退回 CSS flex */ }
   }
 
@@ -5819,7 +6404,7 @@ $("appFilters").addEventListener("click", function (ev) {
     });
     if ($("chatBtnPick")) $("chatBtnPick").addEventListener("click", async function () {
       try {
-        var files = await PS.pickImageFiles(false);
+        var files = await PS.pickImageFiles(false, warnUnsupportedImages);
         if (!files || !files.length) return;
         var res = await PS.fileToBase64(files[0]);
         if (!res) return;
@@ -5887,6 +6472,7 @@ $("appFilters").addEventListener("click", function (ev) {
       st.apps = [];
       // 换账号后不能继续沿用上一账号的 Agent 会话 / 对话 / 上传图片。
       st.agentHistory = [];
+      st.agentMediaSeq = 0;
       st.agentSessionId = null;
       st.agentRunId = null;
       st.agentAllowed = null;

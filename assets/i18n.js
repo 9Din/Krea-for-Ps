@@ -87,6 +87,13 @@ window.KREA_I18N = (function () {
     "chat.agentCopyFailed": ["复制失败，请手动选中文字。", "Could not copy; select the text manually."],
     "chat.agentUseAsPrompt": ["填入生成", "Use in Generate"],
     "chat.agentSentToGenerate": ["已填入生成页的提示词", "Sent to the Generate prompt"],
+    "chat.agentPlace": ["置入 PS", "Place in PS"],
+    "chat.agentPlacing": ["正在置入…", "Placing…"],
+    "chat.agentMediaDownloading": ["正在下载图片…", "Downloading image…"],
+    "chat.agentNoImage": ["图片没有可用地址，无法置入。", "No image URL is available to place."],
+    "chat.agentMediaNotImage": ["这不是图片，无法置入 PS。", "This result is not an image and cannot be placed in Photoshop."],
+    "chat.agentMediaFailed": ["图片生成失败或已取消。", "Image generation failed or was cancelled."],
+    "chat.agentPlaceFailed": ["置入失败：{msg}", "Could not place: {msg}"],
     "chat.agentNoCredits": ["Agent 计算额度不足，或免费额度已用完。", "Not enough Agent compute units, or the free message limit is reached."],
     "chat.agentModelNotAllowed": ["当前套餐不包含这个模型，请改选「自动」或其它模型。", "Your plan does not include this model. Choose Auto or another model."],
     "chat.agentBusy": ["上一轮还在处理中，请等它完成后再发送。", "The previous turn is still running. Wait for it to finish."],
@@ -171,6 +178,7 @@ window.KREA_I18N = (function () {
     "gen.output": ["输出选项:", "Output Options:"],
     "gen.capture": ["使用当前选区", "Use selection"],
     "gen.pick": ["选择文件", "Choose file"],
+    "gen.pickUnsupported": ["仅支持 JPG / JPEG / PNG / WebP 图片：{names}", "Only JPG / JPEG / PNG / WebP images are supported: {names}"],
     "gen.refs": ["参考图（可选）:", "Reference images (optional):"],
     "gen.refsWarning": ["警告：参考图过多可能导致请求超时或 Photoshop 崩溃", "Warning: too many reference images may cause timeouts or crash Photoshop"],
     "gen.addRef": ["添加图片", "Add Image"],
@@ -489,7 +497,7 @@ window.KREA_I18N = (function () {
   /* ---------------------------------------------------------------------------
    * 模型显示名 / 一句话说明的中文词典。
    *
-   * models.js 由 _work/extract-api.cjs 从 Krea 的 OpenAPI 生成，只有英文
+   * models.js 依据 Krea 官方 OpenAPI 生成，只有英文
    * summary / desc，而且 44 个模型里 29 个的 label.zh 其实就是英文名
    * （品牌名无法直译）。所以「生成」页的模型下拉框原来只能显示英文。
    *

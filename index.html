@@ -9,8 +9,8 @@
 	</head>
 	<body>
 		<div id="app">
-			<!-- 版本戳：由构建脚本写入，main.js 启动时会和自身 VERSION 比对 -->
-			<div id="buildStamp" hidden data-version="2.4.1">
+			<!-- 版本戳：必须与 manifest.json / assets/main.js 一致，启动时会校验 -->
+			<div id="buildStamp" hidden data-version="2.4.2">
 			</div>
 			<!-- ============================ 顶部品牌栏 ============================ -->
 			<header class="header">
@@ -374,7 +374,7 @@
 							<sp-button id="chatBtnPick" size="s" quiet data-i18n="chat.upload">上传图片</sp-button>
 							<sp-button id="chatClearBtn" size="s" quiet variant="secondary" data-i18n="chat.clear">清空对话</sp-button>
 						</div>
-						<div class="thumb-strip" id="chatSourceThumb"></div>
+						<div class="thumb-strip hidden" id="chatSourceThumb"></div>
 						<textarea id="chatPrompt" class="k-textarea" style="min-height:56px;" placeholder="问点什么，或让我帮你写提示词…" data-i18n-placeholder="chat.agentPlaceholder"></textarea>
 						<sp-button id="chatSendBtn" variant="cta" data-i18n="chat.send">发送</sp-button>
 					</div>

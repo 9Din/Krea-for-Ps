@@ -1170,14 +1170,37 @@ window.KREA_PS = (function () {
   }
 
   /* -------------------------------------------------------------- 文件 */
-  async function pickImageFiles(multiple) {
+  var IMAGE_FILE_RE = /\.(jpe?g|png|webp)$/i;
+
+  function isImageFile(entry) {
+    return IMAGE_FILE_RE.test(String((entry && entry.name) || ""));
+  }
+
+  /**
+   * 选择图片文件。
+   *
+   * UXP 的 types 数组会为每个扩展名各生成一个下拉筛选项，无法合并成
+   * 「图片 (*.jpg;*.jpeg;*.png;*.webp)」。这里不传 types，让系统对话框
+   * 只保留一个「所有文件」筛选项；选完后按扩展名过滤，并通过 onInvalid
+   * 把不支持的格式交回界面层提示（ps.js 不依赖 i18n/toast）。
+   */
+  async function pickImageFiles(multiple, onInvalid) {
     try {
       var files = await fs.getFileForOpening({
-        types: ["jpg", "jpeg", "png", "webp"],
         allowMultiple: !!multiple
       });
       if (!files) return [];
-      return Array.isArray(files) ? files : [files];
+      var list = Array.isArray(files) ? files : [files];
+      var valid = [];
+      var invalid = [];
+      for (var i = 0; i < list.length; i++) {
+        if (isImageFile(list[i])) valid.push(list[i]);
+        else invalid.push(list[i]);
+      }
+      if (invalid.length && typeof onInvalid === "function") {
+        try { onInvalid(invalid); } catch (eCb) { /* 提示失败不影响已选文件 */ }
+      }
+      return valid;
     } catch (e) {
       return [];
     }

@@ -1,5 +1,5 @@
 /*
- * models.js — Krea 模型注册表（由 _work/extract-api.cjs 依据 Krea 官方 OpenAPI 生成）
+ * models.js — Krea 模型注册表（依据 Krea 官方 OpenAPI 生成）
  * 生成时间: 2026-10-16T13:13:23.086Z
  * 来源: https://api.krea.ai/openapi.json
  * 模型数: 44（图像 35 / 放大增强 9）
