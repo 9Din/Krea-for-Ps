@@ -1,6 +1,6 @@
 {
   "version": "2.4.2",
-  "notes": "修复：\n1. 进行对话时图片同步发送。\n2. 更新“Chat”返回值。\n3. 修复Agent回复图片功能。\n4. 上传图片时，增加对图片格式的判断。",
+  "notes": "Fixed:\n1. When having a conversation, the image is sent synchronously.\n2. Update the return value of \"Chat\".\n3. Fix the Agent reply image function.\n4. Add image format validation when uploading images.",
   "notes_en": "Fixed:\n1. When having a conversation, the image is sent synchronously.\n2. Update the return value of \"Chat\".\n3. Fix the Agent reply image function.\n4. Add image format validation when uploading images.",
   "download": "https://github.com/9Din/Krea-for-Ps/releases/download/v2.4.2/Krea-for-Ps-2.4.2.ccx",
   "page": "https://github.com/9Din/Krea-for-Ps/releases/tag/v2.4.2"
